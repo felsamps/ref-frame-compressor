@@ -18,9 +18,10 @@ private:
 
     int w, h, nv, nf;
     int targetView, targetFrame;
-    Pel* frame;
+    Pel* reconFrame;
+    Pel* residualFrame;
     vector<string> fileNames;
-    fstream file;
+    fstream reconFile, residualFile;
 
     void xInitFileNames(string name);
     void xHandleTargetFile(int view, int frame);
@@ -30,8 +31,17 @@ public:
     VideoHandler(int w, int h, int nv, int nf, string name);
 
     Pel** getBlock(int v, int f, int x, int y);
+    Pel* getNeighboring(int v, int f, int x, int y);
 
+    void insertResidualBlock(Pel** block, int x, int y);
+    void writeResidualFrameInFile();
+    void closeFiles();
 
+    int getNumOfFrames();
+    int getNumOfViews();
+    int getWidth();
+    int getHeight();
+    
 };
 
 #endif	/* _VIDEOHANDLER_H */

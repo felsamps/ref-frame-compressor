@@ -9,7 +9,10 @@ VideoHandler::VideoHandler(int w, int h, int nv, int nf, string name) {
 	this->targetFrame = -1;
 	this->targetView = -1;
 
-	this->frame = new Pel[w * h];
+	this->reconFrame = new Pel[w * h];
+	this->residualFrame = new Pel[w * h];
+
+	this->residualFile.open("residue.mat", fstream::out);
 
 	xInitFileNames(name);
 }
@@ -27,26 +30,25 @@ int VideoHandler::xCalcFilePos(int f) {
 }
 
 void VideoHandler::xHandleTargetFile(int v, int f) {
-	if(this->targetView != -1) {
-		this->file.close();
+	if(this->targetView != v || this->targetFrame != f) {
+		if(this->targetView != -1) {
+			this->reconFile.close();
+		}
+		if(this->targetView != v) {
+			this->reconFile.open(this->fileNames[v].c_str(), fstream::in);
+		}
+
+		this->targetView = v;
+		this->targetFrame = f;
+
+		int filePos = xCalcFilePos(f);
+		this->reconFile.seekg(filePos ,ios::beg);
+		this->reconFile.read(this->reconFrame, this->w * this->h);
 	}
-	if(this->targetView != v) {
-		this->file.open(this->fileNames[v].c_str(), fstream::in);
-	}
-
-	this->targetView = v;
-	this->targetFrame = f;
-
-	int filePos = xCalcFilePos(f);
-	this->file.seekg(filePos ,ios::beg);
-	this->file.read(this->frame, this->w * this->h);
-
 }
 
-Pel **VideoHandler::getBlock(int v, int f, int x, int y) {
-	if(this->targetView != v || this->targetFrame != f) {
-		xHandleTargetFile(v, f);
-	}
+Pel** VideoHandler::getBlock(int v, int f, int x, int y) {
+	xHandleTargetFile(v, f);
 
 	Pel **returnable = new Pel*[BLOCK_SIZE];
 	for (int i = 0; i < BLOCK_SIZE; i++) {
@@ -55,10 +57,71 @@ Pel **VideoHandler::getBlock(int v, int f, int x, int y) {
 
 	for (int j = 0; j < BLOCK_SIZE; j++) {
 		for (int i = 0; i < BLOCK_SIZE; i++) {
-			returnable[i][j] = this->frame[(i+x) + (j+y) * this->w];
+			returnable[i][j] = this->reconFrame[(i+x) + (j+y) * this->w];
 		}
 	}
 
 	return returnable;
 
+}
+
+Pel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
+	xHandleTargetFile(v, f);
+
+	Pel *returnable = new Pel[2*BLOCK_SIZE + 1];
+
+	//TODO corner cases
+
+	/* upper-right neighbor sample */
+	returnable[BLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
+
+	/* left samples */
+	for (int j = 0; j < BLOCK_SIZE; j++) {
+		returnable[(BLOCK_SIZE-1) - j] = (x != 0) ? this->reconFrame[(x-1) + (j+y)*this->w] : -1;
+	}
+
+	/* upper samples */
+	for (int i = 0; i < BLOCK_SIZE; i++) {
+		returnable[(BLOCK_SIZE+1) + i] = (y != 0) ? this->reconFrame[(i+x) + (y-1)*this->w] : -1;
+	}
+
+	return returnable;
+	
+}
+
+void VideoHandler::insertResidualBlock(Pel** block, int x, int y) {
+	for (int j = 0; j < BLOCK_SIZE; j++) {
+		for (int i = 0; i < BLOCK_SIZE; i++) {
+			this->residualFrame[(i+x) + (j+y) * this->w] = block[i][j];
+		}
+	}
+}
+
+void VideoHandler::writeResidualFrameInFile() {
+	for (int y = 0; y < this->h; y++) {
+		for (int x = 0; x < this->w; x++) {
+			this->residualFile << (int)this->residualFrame[x + y*this->w] << " ";
+		}
+		this->residualFile << endl;
+	}
+}
+
+void VideoHandler::closeFiles() {
+	this->residualFile.close();
+}
+
+int VideoHandler::getHeight() {
+	return this->h;
+}
+
+int VideoHandler::getWidth() {
+	return this->w;
+}
+
+int VideoHandler::getNumOfFrames() {
+	return this->nf;
+}
+
+int VideoHandler::getNumOfViews() {
+	return this->nv;
 }

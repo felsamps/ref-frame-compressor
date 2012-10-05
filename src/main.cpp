@@ -4,6 +4,7 @@
 
 #include "../inc/VideoHandler.h"
 #include "../inc/Defines.h"
+#include "../inc/IntraEncoder.h"
 
 using namespace std;
 
@@ -16,7 +17,9 @@ int main(int argc, char** argv) {
 
 	string reconFileName(argv[5]);
 
-	VideoHandler vh(w, h, nv, nf, reconFileName);
-	
+	VideoHandler *vh = new VideoHandler(w, h, nv, nf, reconFileName);
+	IntraEncoder *ie = new IntraEncoder(vh);
+
+	ie->encode();
 }
 
