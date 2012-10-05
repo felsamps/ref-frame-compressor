@@ -14,4 +14,4 @@
 rf_compress
 *.mk
 *.mat
-
+*.yuv

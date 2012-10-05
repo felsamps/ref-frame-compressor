@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configurationDescriptor version="62">
   <logicalFolder name="root" displayName="root" projectFiles="true">
+    <df name="inc" root="inc">
+      <in>Defines.h</in>
+      <in>VideoHandler.h</in>
+    </df>
     <df name="src" root="src">
+      <in>VideoHandler.cpp</in>
       <in>main.cpp</in>
     </df>
     <logicalFolder name="ExternalFiles"
@@ -13,6 +18,7 @@
   </logicalFolder>
   <sourceRootList>
     <Elem>src</Elem>
+    <Elem>inc</Elem>
   </sourceRootList>
   <projectmakefile>ref-frame-compressor-Makefile.mk</projectmakefile>
   <confs>
