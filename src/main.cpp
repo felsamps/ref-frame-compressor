@@ -21,5 +21,6 @@ int main(int argc, char** argv) {
 	IntraEncoder *ie = new IntraEncoder(vh);
 
 	ie->encode();
+	ie->report();
 }
 

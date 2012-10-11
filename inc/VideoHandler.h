@@ -20,6 +20,7 @@ private:
     int targetView, targetFrame;
     Pel* reconFrame;
     Pel* residualFrame;
+    bool* modeFrame;
     vector<string> fileNames;
     fstream reconFile, residualFile;
 
@@ -33,7 +34,11 @@ public:
     Pel** getBlock(int v, int f, int x, int y);
     Pel* getNeighboring(int v, int f, int x, int y);
 
-    void insertResidualBlock(Pel** block, int x, int y);
+    Pel** getSubBlock(int v, int f, int x, int y);
+    Pel* getSubNeighboring(int v, int f, int x, int y);
+
+    void insertResidualBlock(Pel** block, int x, int y, bool mode);
+    void insertResidualSubBlock(Pel** block, int x, int y);
     void writeResidualFrameInFile();
     void closeFiles();
 

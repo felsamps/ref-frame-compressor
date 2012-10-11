@@ -11,6 +11,7 @@ VideoHandler::VideoHandler(int w, int h, int nv, int nf, string name) {
 
 	this->reconFrame = new Pel[w * h];
 	this->residualFrame = new Pel[w * h];
+	this->modeFrame = new bool[(w/BLOCK_SIZE) * (h/BLOCK_SIZE)];
 
 	this->residualFile.open("residue.mat", fstream::out);
 
@@ -65,13 +66,30 @@ Pel** VideoHandler::getBlock(int v, int f, int x, int y) {
 
 }
 
+Pel **VideoHandler::getSubBlock(int v, int f, int x, int y) {
+	xHandleTargetFile(v, f);
+
+	Pel **returnable = new Pel*[SUB_BLOCK_SIZE];
+	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
+		returnable[i] = new Pel[SUB_BLOCK_SIZE];
+	}
+
+	for (int j = 0; j < SUB_BLOCK_SIZE; j++) {
+		for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
+			returnable[i][j] = this->reconFrame[(i+x) + (j+y) * this->w];
+		}
+	}
+
+	return returnable;
+}
+
+
+
 Pel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
 	Pel *returnable = new Pel[2*BLOCK_SIZE + 1];
-
-	//TODO corner cases
-
+	
 	/* upper-right neighbor sample */
 	returnable[BLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
 
@@ -89,9 +107,40 @@ Pel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
 	
 }
 
-void VideoHandler::insertResidualBlock(Pel** block, int x, int y) {
+Pel* VideoHandler::getSubNeighboring(int v, int f, int x, int y) {
+	xHandleTargetFile(v, f);
+
+	Pel *returnable = new Pel[2*SUB_BLOCK_SIZE + 1];
+
+	/* upper-right neighbor sample */
+	returnable[SUB_BLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
+
+	/* left samples */
+	for (int j = 0; j < SUB_BLOCK_SIZE; j++) {
+		returnable[(SUB_BLOCK_SIZE-1) - j] = (x != 0) ? this->reconFrame[(x-1) + (j+y)*this->w] : -1;
+	}
+
+	/* upper samples */
+	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
+		returnable[(SUB_BLOCK_SIZE+1) + i] = (y != 0) ? this->reconFrame[(i+x) + (y-1)*this->w] : -1;
+	}
+
+	return returnable;
+
+}
+
+void VideoHandler::insertResidualBlock(Pel** block, int x, int y, bool mode) {
 	for (int j = 0; j < BLOCK_SIZE; j++) {
 		for (int i = 0; i < BLOCK_SIZE; i++) {
+			this->residualFrame[(i+x) + (j+y) * this->w] = block[i][j];
+		}
+	}
+	this->modeFrame[x/BLOCK_SIZE + (y/BLOCK_SIZE)+this->w] = mode;
+}
+
+void VideoHandler::insertResidualSubBlock(Pel** block, int x, int y) {
+	for (int j = 0; j < SUB_BLOCK_SIZE; j++) {
+		for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
 			this->residualFrame[(i+x) + (j+y) * this->w] = block[i][j];
 		}
 	}
@@ -100,9 +149,10 @@ void VideoHandler::insertResidualBlock(Pel** block, int x, int y) {
 void VideoHandler::writeResidualFrameInFile() {
 	for (int y = 0; y < this->h; y++) {
 		for (int x = 0; x < this->w; x++) {
-			this->residualFile << (int)this->residualFrame[x + y*this->w] << " ";
+			if(x >= BLOCK_SIZE && y >= BLOCK_SIZE) {
+					this->residualFile << (int)this->residualFrame[x + y*this->w] << endl;
+			}
 		}
-		this->residualFile << endl;
 	}
 }
 
