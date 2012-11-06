@@ -1,10 +1,10 @@
 #include "../inc/VideoHandler.h"
 
-VideoHandler::VideoHandler(int w, int h, int nv, int nf, string name) {
+VideoHandler::VideoHandler(int w, int h, int nv, int gops, string name) {
 	this->w = w;
 	this->h = h;
 	this->nv = nv;
-	this->nf = nf;
+	this->gops = gops;
 
 	this->targetFrame = -1;
 	this->targetView = -1;
@@ -110,7 +110,7 @@ Pel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
 Pel* VideoHandler::getSubNeighboring(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
-	Pel *returnable = new Pel[2*SUB_BLOCK_SIZE + 1];
+	Pel *returnable = new Pel[3*SUB_BLOCK_SIZE + 1];
 
 	/* upper-right neighbor sample */
 	returnable[SUB_BLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
@@ -121,8 +121,11 @@ Pel* VideoHandler::getSubNeighboring(int v, int f, int x, int y) {
 	}
 
 	/* upper samples */
-	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
-		returnable[(SUB_BLOCK_SIZE+1) + i] = (y != 0) ? this->reconFrame[(i+x) + (y-1)*this->w] : -1;
+	for (int i = 0; i < 2*SUB_BLOCK_SIZE; i++) {
+		returnable[(SUB_BLOCK_SIZE+1) + i] = 
+				(y == 0) ? -1 :
+					((x+i) >= this->w) ? -1 :
+						this->reconFrame[(i+x) + (y-1)*this->w];
 	}
 
 	return returnable;
@@ -149,10 +152,9 @@ void VideoHandler::insertResidualSubBlock(Pel** block, int x, int y) {
 void VideoHandler::writeResidualFrameInFile() {
 	for (int y = 0; y < this->h; y++) {
 		for (int x = 0; x < this->w; x++) {
-			if(x >= BLOCK_SIZE && y >= BLOCK_SIZE) {
-					this->residualFile << (int)this->residualFrame[x + y*this->w] << endl;
-			}
+			this->residualFile << (int)this->residualFrame[x + y*this->w] << " ";
 		}
+		this->residualFile << endl;
 	}
 }
 
@@ -168,8 +170,8 @@ int VideoHandler::getWidth() {
 	return this->w;
 }
 
-int VideoHandler::getNumOfFrames() {
-	return this->nf;
+int VideoHandler::getNumOfGOP() {
+	return this->gops;
 }
 
 int VideoHandler::getNumOfViews() {

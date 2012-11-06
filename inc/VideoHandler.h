@@ -16,7 +16,7 @@ using namespace std;
 class VideoHandler {
 private:
 
-    int w, h, nv, nf;
+    int w, h, nv, gops;
     int targetView, targetFrame;
     Pel* reconFrame;
     Pel* residualFrame;
@@ -42,7 +42,7 @@ public:
     void writeResidualFrameInFile();
     void closeFiles();
 
-    int getNumOfFrames();
+    int getNumOfGOP();
     int getNumOfViews();
     int getWidth();
     int getHeight();

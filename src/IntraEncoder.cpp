@@ -1,79 +1,250 @@
+#include <list>
+
 #include "../inc/IntraEncoder.h"
+
+int zzBlockOrder[16][2] =
+{
+  {0,0},  {1,0},  {0,1},  {1,1},
+  {2,0},  {3,0},  {2,1},  {3,1},
+  {0,2},  {1,2},  {0,3},  {1,3},
+  {2,2},  {3,2},  {2,3},  {3,3}
+};
+
+int viewOrder[8] = {0, 2, 1, 4, 3, 6, 5, 7};
+
+int frameGOPOrder[9] = {0, 8, 4, 2, 6, 1, 3, 5, 7};
 
 int abs(int a) {
 	return (a<=0) ? -a : a;
 }
 
 
-IntraEncoder::IntraEncoder(VideoHandler* vh) {
+IntraEncoder::IntraEncoder(VideoHandler* vh, Huffman* huffRes, string name) {
 	this->vh = vh;
+	this->huffRes = huffRes;
+
+
+	this->compressedBitCount = 0;
+	this->uncompressedBitCount = 0;
 	this->blockChoices = 0;
 	this->subBlockChoices = 0;
+
+	this->traceFile.open(name.c_str(), fstream::in);
+	
 }
 
-int IntraEncoder::xHorizonalMode(Pel* neighbors, Pel** recon, Pel** residue, int size) {
-	int acumSad = 0;
+void IntraEncoder::xHorizonalMode(Pel* neighbors, Pel** pred, int size) {
+	bool isLeftRef = (neighbors[0] != -1);
 	for (int y = 0; y < size; y++) {
 		for (int x = 0; x < size; x++) {
-			Pel predSample = neighbors[(size-1) - y];
-			residue[x][y] = recon[x][y] - predSample;
-			acumSad += abs(residue[x][y]);
+			if(isLeftRef) {
+				Pel predSample = neighbors[(size-1) - y];
+				pred[x][y] = predSample;
+			}
 		}
 	}
-	return acumSad;
 }
 
-int IntraEncoder::xVerticalMode(Pel* neighbors, Pel** recon, Pel** residue, int size) {
-	int acumSad = 0;
+void IntraEncoder::xVerticalMode(Pel* neighbors, Pel** pred, int size) {
+	bool isUpRef = (neighbors[size+1] != -1);
 	for (int y = 0; y < size; y++) {
 		for (int x = 0; x < size; x++) {
-			Pel predSample = neighbors[(size+1) + x];
-			residue[x][y] = recon[x][y] - predSample;
-			acumSad += abs(residue[x][y]);
+			if(isUpRef) {
+				Pel predSample = neighbors[(size+1) + x];
+				pred[x][y] = predSample;
+			}
 		}
 	}
-	return acumSad;
 }
 
-int IntraEncoder::xDCMode(Pel* neighbors, Pel** recon, Pel** residue, int size) {
+void IntraEncoder::xDCMode(Pel* neighbors, Pel** pred, int size) {
 	int predSample = 0;
 	int validNeigh = 0;
+
 	for (int i = 0; i < 2*size + 1; i++) {
 		if(neighbors[i] != -1) {
 			predSample += neighbors[i];
 			validNeigh ++;
 		}
 	}
-	predSample /= validNeigh;
+	
+	if(validNeigh != 0) {
+		predSample /= validNeigh;
+	}
+	else {
+		predSample = 0x80;
+	}
 
-	int acumSad = 0;
 	for (int y = 0; y < size; y++) {
 		for (int x = 0; x < size; x++) {
-			residue[x][y] = recon[x][y] - predSample;
-			acumSad += abs(residue[x][y]);
+			pred[x][y] = predSample;
 		}
 	}
-	return acumSad;
 
 }
 
-int IntraEncoder::xComputeIntraMode(int mode, Pel* neighbors, Pel** recon, Pel** residue, int size) {
-	int sad = 0x7FFFFFFF;
+//TODO verify
+void IntraEncoder::xDRMode(Pel* neighbors, Pel** pred) {
+	pred[3][0] = (neighbors[6] + neighbors[7]*2 + neighbors[8] + 2) >> 2;
+	pred[2][0] = pred[3][1] = (neighbors[5] + neighbors[6]*2 + neighbors[7] + 2) >> 2;
+	pred[1][0] = pred[2][1] = pred[3][2] = (neighbors[4] + neighbors[5]*2 + neighbors[6] + 2) >> 2;
+	pred[0][0] = pred[1][1] = pred[2][2] = pred[3][3] = (neighbors[3] + neighbors[4]*2 + neighbors[5] + 2) >> 2;
+				 pred[0][1] = pred[1][2] = pred[2][3] = (neighbors[2] + neighbors[3]*2 + neighbors[4] + 2) >> 2;
+							  pred[0][2] = pred[1][3] = (neighbors[1] + neighbors[2]*2 + neighbors[3] + 2) >> 2;
+										   pred[0][3] = (neighbors[0] + neighbors[1]*2 + neighbors[2] + 2) >> 2;
+
+}
+
+//TODO verify
+void IntraEncoder::xDLMode(Pel* neighbors, Pel** pred) {
+
+	int n = SUB_BLOCK_SIZE+1;
+	for (int y = 0; y < SUB_BLOCK_SIZE; y++) {
+		int nn = n;
+		for (int x = 0; x < SUB_BLOCK_SIZE; x++) {
+			Pel predSample;
+			if(x == 3 && y == 3) {
+				predSample = (neighbors[nn] + 2*neighbors[nn+1] + neighbors[nn+1] + 2) >> 2;
+			}
+			else {
+				predSample = (neighbors[nn] + 2*neighbors[nn+1] + neighbors[nn+2] + 2) >> 2;
+			}
+			pred[x][y] = predSample;
+			nn++;
+		}
+		n++;
+	}
+}
+
+//TODO verify
+void IntraEncoder::xVRMode(Pel* neighbors, Pel** pred) {
+	int n = SUB_BLOCK_SIZE;
+	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
+		Pel predSample = (neighbors[n] + neighbors[n+1] + 1) >> 1;
+		pred[i][0] = predSample;
+		if(i >= 0 && i < 3) {
+			pred[i+1][2] = predSample;
+		}
+		n++;
+	}
+
+	n = SUB_BLOCK_SIZE-1;
+	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
+		Pel predSample = (neighbors[n] + 2*neighbors[n+1] + neighbors[n+2] + 1) >> 2;
+		pred[i][1] = predSample;
+		if(i >= 0 && i < 3) {
+			pred[i+1][3] = predSample;
+		}
+		n++;
+	}
+
+	n = SUB_BLOCK_SIZE;
+	Pel predSample = (neighbors[n] + 2*neighbors[n-1] + neighbors[n-2] + 1);
+	pred[0][2] = predSample;
+	predSample = (neighbors[n-1] + 2*neighbors[n-2] + neighbors[n-3] + 1);
+	pred[0][3] = predSample;
+}
+
+//TODO verify
+void IntraEncoder::xHDMode(Pel* neighbors, Pel** pred) {
+	pred[0][0] = pred[2][1] = (neighbors[4] + neighbors[3] + 1) >> 1;
+	pred[1][0] = pred[3][1] = (neighbors[3] + neighbors[4]*2 + neighbors[5] + 2) >> 2;
+	pred[2][0] = (neighbors[4] + neighbors[5]*2 + neighbors[6] + 2) >> 2;
+	pred[3][0] = (neighbors[5] + neighbors[6]*2 + neighbors[7] + 2) >> 2;
+
+	pred[0][1] = pred[2][2] = (neighbors[3] + neighbors[2] + 1) >> 1;
+	pred[1][1] = pred[3][2] = (neighbors[4] + neighbors[3]*2 + neighbors[2] + 2) >> 2;
+	pred[0][2] = pred[2][3] = (neighbors[2] + neighbors[1] + 1) >> 1;
+	pred[1][2] = pred[3][3] = (neighbors[3] + neighbors[2]*2 + neighbors[1] + 2) >> 2;
+
+	pred[0][3] = (neighbors[0] + neighbors[1] + 1) >> 1;
+	pred[1][3] = (neighbors[2] + neighbors[1]*2 + neighbors[0] + 2) >> 2;
+
+}
+
+//TODO verify
+void IntraEncoder::xVLMode(Pel* neighbors, Pel** pred) {
+	pred[0][0] = (neighbors[5] + neighbors[6] + 1) >> 1;
+
+	pred[1][0] = pred[0][2] = (neighbors[6] + neighbors[7] + 1) >> 1;
+	pred[2][0] = pred[1][2] = (neighbors[7] + neighbors[8] + 1) >> 1;
+	pred[3][0] = pred[2][2] = (neighbors[8] + neighbors[9] + 1) >> 1;
+				 pred[3][2] = (neighbors[9] + neighbors[10] + 1) >> 1;
+
+	pred[0][1] =              (neighbors[5] + neighbors[6]*2 + neighbors[7] + 2) >> 2;
+	pred[1][1] = pred[0][3] = (neighbors[6] + neighbors[7]*2 + neighbors[8] + 2) >> 2;
+	pred[2][1] = pred[1][3] = (neighbors[7] + neighbors[8]*2 + neighbors[9] + 2) >> 2;
+	pred[3][1] = pred[2][3] = (neighbors[8] + neighbors[9]*2 + neighbors[10] + 2) >> 2;
+				 pred[3][3] = (neighbors[9] + neighbors[10]*2 + neighbors[11] + 2) >> 2;
+
+}
+
+//TODO verify
+void IntraEncoder::xHUMode(Pel* neighbors, Pel** pred) {
+	pred[0][0] = (neighbors[3] + neighbors[2] + 1) >> 1;
+	pred[1][0] = (neighbors[3] + neighbors[2]*2 + neighbors[1] + 2) >> 2;
+	pred[2][0] = pred[0][1] = (neighbors[2] + neighbors[1] + 1) >> 1;
+	pred[2][0] = pred[0][1] = (neighbors[2] + neighbors[1]*2 + neighbors[0] + 2) >> 2;
+
+	pred[2][2] = pred[0][2] = (neighbors[1] + neighbors[0] + 1) >> 1;
+	pred[3][1] = pred[1][2] = (neighbors[1] + neighbors[0]*2 + neighbors[0] + 2) >> 2;
+	
+	pred[2][2] = pred[3][2] = pred[0][3] = pred[2][3] = pred[1][3] = pred[3][3] = neighbors[0];
+
+}
+
+void xPlaneMode(Pel* neighbors, Pel** pred) {
+	return ;
+}
+
+void IntraEncoder::xComputeIntraMode(int mode, Pel* neighbors, Pel** pred) {
 	switch(mode) {
-		case HOR_MODE:
-			sad = (neighbors[0] != -1) ? xHorizonalMode(neighbors, recon, residue, size) : sad;
-			break;
 		case VER_MODE:
-			sad = (neighbors[size+1] != -1) ? xVerticalMode(neighbors, recon, residue, size) : sad;
+			xVerticalMode(neighbors, pred, BLOCK_SIZE);
 			break;
-		/*case DIAG_MODE: TODO
-			sad = xDiagonalMode(neighbors, recon, residue);
-			break;*/
+		case HOR_MODE:
+			xHorizonalMode(neighbors,  pred, BLOCK_SIZE);
+			break;
 		case DC_MODE:
-			sad = (neighbors[0] != -1 && neighbors[size+1] != -1) ? xDCMode(neighbors, recon, residue, size) : sad;
+			xDCMode(neighbors, pred, BLOCK_SIZE);
+			break;
+		case PLANE_MODE: //TODO
+			//xPlaneMode(neighbors, pred);
 			break;
 	}
-	return sad;
+}
+
+void IntraEncoder::xComputeSubIntraMode(int mode, Pel* neighbors, Pel** pred) {
+
+	switch(mode) {
+		case VER_SMODE:
+			xVerticalMode(neighbors, pred, SUB_BLOCK_SIZE);
+			break;
+		case HOR_SMODE:
+			xHorizonalMode(neighbors, pred, SUB_BLOCK_SIZE);
+			break;
+		case DC_SMODE:
+			xDCMode(neighbors, pred, SUB_BLOCK_SIZE);
+			break;
+		case DL_SMODE: //TODO
+			xDLMode(neighbors, pred);
+			break;
+		case DR_SMODE: //TODO
+			xDRMode(neighbors, pred);
+			break;
+		case VR_SMODE: //TODO
+			xVRMode(neighbors, pred);
+			break;
+		case HD_SMODE: //TODO
+			xHDMode(neighbors, pred);
+			break;
+		case VL_SMODE: //TODO
+			xVLMode(neighbors, pred);
+			break;
+		case HU_SMODE: //TODO
+			xHUMode(neighbors, pred);
+			break;
+	}
 }
 
 void IntraEncoder::xCopyBlock(Pel** blk0, Pel** blk1, int size) {
@@ -84,68 +255,13 @@ void IntraEncoder::xCopyBlock(Pel** blk0, Pel** blk1, int size) {
 	}
 }
 
-pair<IntraMode, int> IntraEncoder::xEncodeBlock(int v, int f, int x, int y, Pel** residue) {
-	/* INTRA FOR BLOCKS */
-	Pel* neighbors = vh->getNeighboring(v, f, x, y);
-	Pel** block = vh->getBlock(v, f, x, y);
-
-	Pel **tempRes;
-	int tempSad, bestSad = 0x7FFFFFFF;
-	IntraMode bestMode;
-	
-	tempRes = new Pel*[BLOCK_SIZE];
-	for (int i = 0; i < BLOCK_SIZE; i++) {
-		tempRes[i] = new Pel[BLOCK_SIZE];
-	}
-	
-	for (int m = 0; m < 4; m++) {
-		tempSad = xComputeIntraMode(m, neighbors, block, tempRes, BLOCK_SIZE);
-
-		if( tempSad < bestSad ) {
-			bestMode = (IntraMode)m;
-			bestSad = tempSad;
-			this->xCopyBlock(residue, tempRes, BLOCK_SIZE);
-		}
-	}
-	pair<IntraMode, int> returnable(bestMode, bestSad);
-	return returnable;
-}
-
-pair<vector<IntraMode>, int> IntraEncoder::xEncodeSubBlock(int v, int f, int x, int y, Pel** residue) {
-	/* INTRA FOR SUB-BLOCKS */
-	Pel **tempSubRes;
-	int tempSubSad, bestSubSad = 0x7FFFFFFF, acumSubSad = 0;
-	IntraMode bestSubMode;
-	vector<IntraMode> modes;
-	
-
-
-	tempSubRes = new Pel*[SUB_BLOCK_SIZE];
-	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
-		tempSubRes[i] = new Pel[SUB_BLOCK_SIZE];
-	}
-
-
-	for (int yy = 0; yy < BLOCK_SIZE; yy+=SUB_BLOCK_SIZE) {
-		for (int xx = 0; xx < BLOCK_SIZE; xx+=SUB_BLOCK_SIZE) {
-			for (int m = 0; m < 4; m++) {
-				Pel **block = vh->getSubBlock(v, f, x+xx, y+yy);
-				Pel *subNeighbors = vh->getSubNeighboring(v, f, x+xx, y+yy);
-				tempSubSad = xComputeIntraMode(m, subNeighbors, block, tempSubRes, SUB_BLOCK_SIZE);
-
-				if( tempSubSad < bestSubSad ) {
-					bestSubMode = (IntraMode)m;
-					bestSubSad = tempSubSad;
-					xCopySubBlock(residue, tempSubRes, SUB_BLOCK_SIZE, xx, yy);
-				}
-			}
-			modes.push_back(bestSubMode);
-			acumSubSad += bestSubSad;
+void IntraEncoder::xCalcResidue(Pel** block, Pel** blockPred, Pel** blockResidue, int size) {
+	for (int y = 0; y < size; y++) {
+		for (int x = 0; x < size; x++) {
+			blockResidue[x][y] = block[x][y] - blockPred[x][y];
 		}
 	}
 
-	pair<vector<IntraMode>, int> returnable(modes,acumSubSad);
-	return returnable;
 }
 
 void IntraEncoder::encode() {
@@ -153,53 +269,83 @@ void IntraEncoder::encode() {
 	/*loop over the views*/
 	for (int v = 0; v < this->vh->getNumOfViews(); v++) {
 		/*loop over the frames*/
-		for (int f = 0; f < this->vh->getNumOfFrames(); f++) {
+		for (int g = 0; g< this->vh->getNumOfGOP(); g++) {
 			/*loop over the blocks*/
-			for (int y = 0; y < this->vh->getHeight(); y+=BLOCK_SIZE) {
-				for (int x = 0; x < this->vh->getWidth(); x+=BLOCK_SIZE) {
-					Pel **blockResidue, **subBlockResidue;
+			for (int f = (g==0) ? 0:1 ; f < GOP_SIZE+1; f++) {
+				int vo = viewOrder[v];
+				int fo = frameGOPOrder[f] + GOP_SIZE*g;
 
-					blockResidue = new Pel*[BLOCK_SIZE];
-					subBlockResidue = new Pel*[BLOCK_SIZE];
-					for (int i = 0; i < BLOCK_SIZE; i++) {
-						blockResidue[i] = new Pel[BLOCK_SIZE];
-						subBlockResidue[i] = new Pel[BLOCK_SIZE];
-					}
+				cout << vo << " " << fo << endl;
 
-					pair<IntraMode,int> pBlock;
-					pBlock = this->xEncodeBlock(v, f, x, y, blockResidue);
+				for (int y = 0; y < this->vh->getHeight(); y+=BLOCK_SIZE) {
+					for (int x = 0; x < this->vh->getWidth(); x+=BLOCK_SIZE) {
+						Pel **blockResidue, **blockPred;
+						blockResidue = new Pel*[BLOCK_SIZE];
+						blockPred = new Pel*[BLOCK_SIZE];
+						for (int i = 0; i < BLOCK_SIZE; i++) {
+							blockResidue[i] = new Pel[BLOCK_SIZE];
+							blockPred[i] = new Pel[BLOCK_SIZE];
+						}
 
-					#if EN_SUB_BLOCK
-					pair<vector<IntraMode>, int> pSubBlock;
-					pSubBlock = this->xEncodeSubBlock(v, f, x, y, subBlockResidue);
-					
-					Pel **res;
-					bool mode;
-					int blockSad = pBlock.second;
-					int subBlockSad = pSubBlock.second;
-					
-					if(abs(subBlockSad - blockSad) < 600) {
-						res = blockResidue;
-						this->blockChoices ++;
-						mode = BLOCK_MODE;
-					}
-					else {
-						res = subBlockResidue;
-						this->subBlockChoices ++;
-						mode = SUB_BLOCK_MODE;
-					}
-					#else
+						char blockType;
+						vector<int> modes;
 
-					Pel** res = blockResidue;
-					bool mode = BLOCK_MODE;
-					this->blockChoices ++;
-					
-					#endif
-					/*write back the residual information*/
-					if( x!=0 || y!=0 ) {
-						vh->insertResidualBlock(res, x, y, mode);
+						
+						this->traceFile >> blockType;
+
+						if(blockType == 'B') {
+							int mode;
+							this->traceFile >> mode;
+							modes.push_back(mode);
+
+							Pel **block = vh->getBlock(vo, fo, x, y);
+							Pel *neighbor = vh->getNeighboring(vo, fo, x ,y);
+							xComputeIntraMode(mode, neighbor, blockPred);
+							xCalcResidue(block, blockPred, blockResidue, BLOCK_SIZE);
+
+							this->blockChoices ++;
+
+						}
+						else { /* size == 'S' */
+							Pel **subBlockResidue, **subBlockPred;
+							subBlockResidue = new Pel*[SUB_BLOCK_SIZE];
+							subBlockPred = new Pel*[SUB_BLOCK_SIZE];
+							this->subBlockChoices ++;
+
+							for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
+								subBlockResidue[i] = new Pel[SUB_BLOCK_SIZE];
+								subBlockPred[i] = new Pel[SUB_BLOCK_SIZE];
+							}
+
+							/* ZZ ORDER: TODO refactor it*/
+							for(int i=0; i<16; i++)	{
+								int mode;
+								this->traceFile >> mode;
+								modes.push_back(mode);
+
+								int xx = zzBlockOrder[i][0] * SUB_BLOCK_SIZE;
+								int yy = zzBlockOrder[i][1] * SUB_BLOCK_SIZE;
+
+								Pel **block = vh->getSubBlock(vo, fo, x+xx, y+yy);
+								Pel *neighbor = vh->getSubNeighboring(vo, fo, x+xx, y+yy);
+
+								xComputeSubIntraMode(mode, neighbor, subBlockPred);
+								xCalcResidue(block,subBlockPred, subBlockResidue, SUB_BLOCK_SIZE);
+								xCopySubBlock(blockResidue,subBlockResidue, SUB_BLOCK_SIZE, xx, yy);
+							}
+
+						}
+
+						list<char> compressed = this->huffRes->encodeBlock(blockResidue);
+
+						this->compressedBitCount += compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*MODE_BIT_WIDTH);
+						this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
+
+						/*write back the residual information*/
+						vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
+						modes.clear();
+
 					}
-									
 				}
 			}
 			/*write the residual information of the frame in the file*/
@@ -222,7 +368,50 @@ void IntraEncoder::report() {
 	double blockPctg = this->blockChoices / (double) (this->blockChoices + this->subBlockChoices);
 	double subBlockPctg = 1 - blockPctg;
 
+	double losslessSavings = this->compressedBitCount / (double) (this->uncompressedBitCount);
+	losslessSavings = 1 - losslessSavings;
+
+	double bitsPerBlock = this->compressedBitCount / (double)(this->vh->getWidth() * this->vh->getHeight() * this->vh->getNumOfGOP() * this->vh->getNumOfViews() / (BLOCK_SIZE*BLOCK_SIZE) );
+	
+
 	cout << "BLOCK CHOICES:\t" << blockPctg << endl;
 	cout << "SBLOCK CHOICES:\t" << subBlockPctg << endl;
 
+
+	cout << "UNCOMPRESS BW:\t" << this->uncompressedBitCount / (BLOCK_SIZE*BLOCK_SIZE) << endl;
+	cout << "COMPRESSED BW:\t" << this->compressedBitCount / (BLOCK_SIZE*BLOCK_SIZE) << endl;
+
+	cout << "LOSSLESS SAV:\t" << losslessSavings << endl;
+	cout << "AV. BIT/BLOCK:\t" << bitsPerBlock << endl;
+
+}
+
+void IntraEncoder::xReportStatus(int xx, int yy, int mode, Pel* neighbor, Pel** block, Pel** subBlockPred) {
+	cout << xx << " " << yy << " " << mode << endl;
+	for (int i = SUB_BLOCK_SIZE; i < SUB_BLOCK_SIZE*3 + 1; i++) {
+		unsigned char n = neighbor[i];
+		cout << (unsigned int)n << " ";
+	}
+	cout << endl;
+	for (int i = SUB_BLOCK_SIZE-1; i >= 0 ; i--) {
+		unsigned char n = neighbor[i];
+		cout << (unsigned int)n<< endl;
+	}
+	/*
+	for (int y = 0; y < SUB_BLOCK_SIZE; y++) {
+		for (int x = 0; x < SUB_BLOCK_SIZE; x++) {
+			cout << (int)block[x][y] << " ";
+		}
+		cout << endl;
+	}*/
+	cout << endl;
+
+	for (int y = 0; y < SUB_BLOCK_SIZE; y++) {
+		for (int x = 0; x < SUB_BLOCK_SIZE; x++) {
+			unsigned char n = subBlockPred[x][y];
+			cout << (unsigned int) n << " ";
+		}
+		cout << endl;
+	}
+	
 }
