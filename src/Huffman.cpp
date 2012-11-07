@@ -29,9 +29,12 @@ list<char> Huffman::encodeBlock(Pel** block) {
 	for (int y = 0; y < BLOCK_SIZE; y++) {
 		for (int x = 0; x < BLOCK_SIZE; x++) {
 			list<char> l = this->dict[block[x][y]];
+			//cout << l.size() << " ";
 			returnable.merge(l);
+			//cout << returnable.size() << endl;
 		}
-		return returnable;
+		//getchar();
 	}
+	return returnable;
 
 }

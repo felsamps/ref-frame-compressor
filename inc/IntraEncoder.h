@@ -15,6 +15,7 @@ private:
     VideoHandler* vh;
     Huffman* huffRes;
     fstream traceFile;
+    int mode;
     
     long long int blockChoices, subBlockChoices;
     long long int compressedBitCount, uncompressedBitCount;
@@ -47,7 +48,7 @@ private:
     void xReportStatus(int xx, int yy, int mode, Pel* neighbor, Pel** block, Pel** subBlockPred);
 
 public:
-    IntraEncoder(VideoHandler* vh, Huffman* huffRes, string name);
+    IntraEncoder(int mode, VideoHandler* vh, Huffman* huffRes, string name);
 
     void encode();
 

@@ -19,10 +19,10 @@ int abs(int a) {
 }
 
 
-IntraEncoder::IntraEncoder(VideoHandler* vh, Huffman* huffRes, string name) {
+IntraEncoder::IntraEncoder(int mode, VideoHandler* vh, Huffman* huffRes, string name) {
 	this->vh = vh;
 	this->huffRes = huffRes;
-
+	this->mode = mode;
 
 	this->compressedBitCount = 0;
 	this->uncompressedBitCount = 0;
@@ -268,15 +268,15 @@ void IntraEncoder::encode() {
 
 	/*loop over the views*/
 	for (int v = 0; v < this->vh->getNumOfViews(); v++) {
-		/*loop over the frames*/
+		/*loop over the GOPs*/
 		for (int g = 0; g< this->vh->getNumOfGOP(); g++) {
-			/*loop over the blocks*/
+			/*loop over the frames*/
 			for (int f = (g==0) ? 0:1 ; f < GOP_SIZE+1; f++) {
 				int vo = viewOrder[v];
 				int fo = frameGOPOrder[f] + GOP_SIZE*g;
 
 				cout << vo << " " << fo << endl;
-
+				/*loop over the blocks*/
 				for (int y = 0; y < this->vh->getHeight(); y+=BLOCK_SIZE) {
 					for (int x = 0; x < this->vh->getWidth(); x+=BLOCK_SIZE) {
 						Pel **blockResidue, **blockPred;
@@ -287,31 +287,42 @@ void IntraEncoder::encode() {
 							blockPred[i] = new Pel[BLOCK_SIZE];
 						}
 
+						/* tracing file reading */
 						char blockType;
-						vector<int> modes;
 
+						/*I4*/
+						vector<int> subModes;
+						unsigned int subCost;
+
+						this->traceFile >> blockType >> subCost;
+						for(int i=0; i<16; i++)	{
+							int subMode;
+							this->traceFile >> subMode;
+							subModes.push_back(subMode);
+						}
+
+						/*I16*/
+						int mode;
+						unsigned int cost;
+
+						this->traceFile >> blockType >> cost >> mode;
 						
-						this->traceFile >> blockType;
-
-						if(blockType == 'B') {
-							int mode;
-							this->traceFile >> mode;
-							modes.push_back(mode);
-
+						if( this->mode == I16_ONLY || (this->mode == I4_I16 && cost < subCost)) {
 							Pel **block = vh->getBlock(vo, fo, x, y);
 							Pel *neighbor = vh->getNeighboring(vo, fo, x ,y);
 							xComputeIntraMode(mode, neighbor, blockPred);
 							xCalcResidue(block, blockPred, blockResidue, BLOCK_SIZE);
 
 							this->blockChoices ++;
-
+							blockType = 'B';
+							
 						}
-						else { /* size == 'S' */
+						else { /* (this->mode == I4_ONLY || (this->mode == I4_I16 && cost > subCost)) */
 							Pel **subBlockResidue, **subBlockPred;
 							subBlockResidue = new Pel*[SUB_BLOCK_SIZE];
 							subBlockPred = new Pel*[SUB_BLOCK_SIZE];
 							this->subBlockChoices ++;
-
+							
 							for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
 								subBlockResidue[i] = new Pel[SUB_BLOCK_SIZE];
 								subBlockPred[i] = new Pel[SUB_BLOCK_SIZE];
@@ -319,10 +330,6 @@ void IntraEncoder::encode() {
 
 							/* ZZ ORDER: TODO refactor it*/
 							for(int i=0; i<16; i++)	{
-								int mode;
-								this->traceFile >> mode;
-								modes.push_back(mode);
-
 								int xx = zzBlockOrder[i][0] * SUB_BLOCK_SIZE;
 								int yy = zzBlockOrder[i][1] * SUB_BLOCK_SIZE;
 
@@ -334,26 +341,26 @@ void IntraEncoder::encode() {
 								xCopySubBlock(blockResidue,subBlockResidue, SUB_BLOCK_SIZE, xx, yy);
 							}
 
+							blockType = 'S';
 						}
-
+						
 						list<char> compressed = this->huffRes->encodeBlock(blockResidue);
 
-						this->compressedBitCount += compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*MODE_BIT_WIDTH);
+						this->compressedBitCount += compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*SMODE_BIT_WIDTH);
 						this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
 
 						/*write back the residual information*/
 						vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
-						modes.clear();
+						subModes.clear();
 
 					}
 				}
+				/*write the residual information of the frame in the file*/
+				vh->writeResidualFrameInFile();
 			}
-			/*write the residual information of the frame in the file*/
-			vh->writeResidualFrameInFile();
 		}
 	}
 	vh->closeFiles();
-
 }
 
 void IntraEncoder::xCopySubBlock(Pel** blk0, Pel** blk1, int size, int x, int y) {

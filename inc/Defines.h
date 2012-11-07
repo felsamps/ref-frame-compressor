@@ -1,7 +1,9 @@
 #ifndef _DEFINES_H
 #define	_DEFINES_H
 
-#define EN_SUB_BLOCK 1
+#define I4_ONLY 0
+#define I16_ONLY 1
+#define I4_I16 2
 
 #define BLOCK_SIZE 16
 #define SUB_BLOCK_SIZE 4
@@ -10,7 +12,8 @@
 #define SUB_BLOCK_MODE false
 
 #define SAMPLE_BIT_WIDTH 8
-#define MODE_BIT_WIDTH 4
+#define SMODE_BIT_WIDTH 4
+#define MODE_BIT_WIDTH 2
 
 #define GOP_SIZE 8
 

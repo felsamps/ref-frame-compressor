@@ -11,22 +11,22 @@ using namespace std;
 
 int main(int argc, char** argv) {
 
-	int w = atoi(argv[1]);
-	int h = atoi(argv[2]);
-	int nv = atoi(argv[3]);
-	int gops = atoi(argv[4]);
+	int mode = atoi(argv[1]);
+	int w = atoi(argv[2]);
+	int h = atoi(argv[3]);
+	int nv = atoi(argv[4]);
+	int gops = atoi(argv[5]);
 
-	string reconFileName(argv[5]);
-	string traceFileName(argv[6]);
-	string huffDictFileName(argv[7]);
+	string reconFileName(argv[6]);
+	string traceFileName(argv[7]);
+	string huffDictFileName(argv[8]);
 
 	VideoHandler* vh = new VideoHandler(w, h, nv, gops, reconFileName);
 	Huffman *huffRes = new Huffman(huffDictFileName);
-	IntraEncoder* ie = new IntraEncoder(vh, huffRes, traceFileName);
+	IntraEncoder* ie = new IntraEncoder(mode, vh, huffRes, traceFileName);
 
 	ie->encode();
 	ie->report();
 
-	Huffman* hf = new Huffman("dict.mat");
 }
 
