@@ -1,10 +1,11 @@
 #include "../inc/VideoHandler.h"
 
-VideoHandler::VideoHandler(int w, int h, int nv, int gops, string name) {
+VideoHandler::VideoHandler(int w, int h, int nv, int gops, string name, string videoName) {
 	this->w = w;
 	this->h = h;
 	this->nv = nv;
 	this->gops = gops;
+	this->videoName = videoName;
 
 	this->targetFrame = -1;
 	this->targetView = -1;
@@ -14,6 +15,7 @@ VideoHandler::VideoHandler(int w, int h, int nv, int gops, string name) {
 	this->modeFrame = new bool[(w/BLOCK_SIZE) * (h/BLOCK_SIZE)];
 
 	this->residualFile.open("residue.mat", fstream::out);
+	this->varFile.open("variance.mat", fstream::out);
 
 	xInitFileNames(name);
 }
@@ -158,6 +160,30 @@ void VideoHandler::writeResidualFrameInFile() {
 	}
 }
 
+void VideoHandler::calcVar() {
+	for (int y = 0; y < this->h; y+=BLOCK_SIZE) {
+		for (int x = 0; x < this->w; x+=BLOCK_SIZE) {
+			int acum = 0;
+			for (int yy = 0; yy < BLOCK_SIZE; yy++) {
+				for (int xx = 0; xx < BLOCK_SIZE; xx++) {
+					acum += this->reconFrame[x+xx + (y+yy)*this->w];
+				}
+			}
+			double average = acum / (double)(BLOCK_SIZE*BLOCK_SIZE);
+			double dAcum = 0.0;
+			for (int yy = 0; yy < BLOCK_SIZE; yy++) {
+				for (int xx = 0; xx < BLOCK_SIZE; xx++) {
+					dAcum += pow(average - this->reconFrame[x+xx + (y+yy)*this->w], 2);
+				}
+			}
+			double variance = dAcum / (double)(BLOCK_SIZE*BLOCK_SIZE);
+			this->varFile << variance << " ";
+		}
+		this->varFile << endl;
+	}
+
+}
+
 void VideoHandler::closeFiles() {
 	this->residualFile.close();
 }
@@ -176,4 +202,8 @@ int VideoHandler::getNumOfGOP() {
 
 int VideoHandler::getNumOfViews() {
 	return this->nv;
+}
+
+string VideoHandler::getVideoName() {
+	return this->videoName;
 }

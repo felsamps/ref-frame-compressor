@@ -18,6 +18,9 @@ int abs(int a) {
 	return (a<=0) ? -a : a;
 }
 
+int sat(int a) {
+	return (a < 0) ? 0 : (a > 255) ? 255 : a;
+}
 
 IntraEncoder::IntraEncoder(int mode, VideoHandler* vh, Huffman* huffRes, string name) {
 	this->vh = vh;
@@ -58,12 +61,12 @@ void IntraEncoder::xVerticalMode(Pel* neighbors, Pel** pred, int size) {
 }
 
 void IntraEncoder::xDCMode(Pel* neighbors, Pel** pred, int size) {
-	int predSample = 0;
+	unsigned int predSample = 0;
 	int validNeigh = 0;
 
 	for (int i = 0; i < 2*size + 1; i++) {
 		if(neighbors[i] != -1) {
-			predSample += neighbors[i];
+			predSample += (unsigned char) neighbors[i];
 			validNeigh ++;
 		}
 	}
@@ -83,7 +86,6 @@ void IntraEncoder::xDCMode(Pel* neighbors, Pel** pred, int size) {
 
 }
 
-//TODO verify
 void IntraEncoder::xDRMode(Pel* neighbors, Pel** pred) {
 	pred[3][0] = (neighbors[6] + neighbors[7]*2 + neighbors[8] + 2) >> 2;
 	pred[2][0] = pred[3][1] = (neighbors[5] + neighbors[6]*2 + neighbors[7] + 2) >> 2;
@@ -95,7 +97,6 @@ void IntraEncoder::xDRMode(Pel* neighbors, Pel** pred) {
 
 }
 
-//TODO verify
 void IntraEncoder::xDLMode(Pel* neighbors, Pel** pred) {
 
 	int n = SUB_BLOCK_SIZE+1;
@@ -116,7 +117,6 @@ void IntraEncoder::xDLMode(Pel* neighbors, Pel** pred) {
 	}
 }
 
-//TODO verify
 void IntraEncoder::xVRMode(Pel* neighbors, Pel** pred) {
 	int n = SUB_BLOCK_SIZE;
 	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
@@ -145,7 +145,6 @@ void IntraEncoder::xVRMode(Pel* neighbors, Pel** pred) {
 	pred[0][3] = predSample;
 }
 
-//TODO verify
 void IntraEncoder::xHDMode(Pel* neighbors, Pel** pred) {
 	pred[0][0] = pred[2][1] = (neighbors[4] + neighbors[3] + 1) >> 1;
 	pred[1][0] = pred[3][1] = (neighbors[3] + neighbors[4]*2 + neighbors[5] + 2) >> 2;
@@ -162,7 +161,6 @@ void IntraEncoder::xHDMode(Pel* neighbors, Pel** pred) {
 
 }
 
-//TODO verify
 void IntraEncoder::xVLMode(Pel* neighbors, Pel** pred) {
 	pred[0][0] = (neighbors[5] + neighbors[6] + 1) >> 1;
 
@@ -179,7 +177,6 @@ void IntraEncoder::xVLMode(Pel* neighbors, Pel** pred) {
 
 }
 
-//TODO verify
 void IntraEncoder::xHUMode(Pel* neighbors, Pel** pred) {
 	pred[0][0] = (neighbors[3] + neighbors[2] + 1) >> 1;
 	pred[1][0] = (neighbors[3] + neighbors[2]*2 + neighbors[1] + 2) >> 2;
@@ -193,8 +190,35 @@ void IntraEncoder::xHUMode(Pel* neighbors, Pel** pred) {
 
 }
 
-void xPlaneMode(Pel* neighbors, Pel** pred) {
-	return ;
+void IntraEncoder::xPlaneMode(Pel* neighbors, Pel** pred) {
+	int hLine = (neighbors[25] - neighbors[23]) * 1 +
+			(neighbors[26] - neighbors[22]) * 2 +
+			(neighbors[27] - neighbors[21]) * 3 +
+			(neighbors[28] - neighbors[20]) * 4 +
+			(neighbors[29] - neighbors[19]) * 5 +
+			(neighbors[30] - neighbors[18]) * 6 +
+			(neighbors[31] - neighbors[17]) * 7 +
+			(neighbors[32] - neighbors[16]) * 8;
+	
+	int vLine = (neighbors[7] - neighbors[9]) * 1 +
+			(neighbors[6] - neighbors[10]) * 2 +
+			(neighbors[5] - neighbors[11]) * 3 +
+			(neighbors[4] - neighbors[12]) * 4 +
+			(neighbors[3] - neighbors[13]) * 5 +
+			(neighbors[2] - neighbors[14]) * 6 +
+			(neighbors[1] - neighbors[15]) * 7 +
+			(neighbors[0] - neighbors[16]) * 8;
+
+	int h = (5 * hLine + 32) >> 6;
+	int v = (5 * vLine + 32) >> 6;
+
+	int a = 16 * (neighbors[0] + neighbors[32] + 1) - 7 * (h + v);
+	for (int y = 0; y < BLOCK_SIZE; y++) {
+		for (int x = 0; x < BLOCK_SIZE; x++) {
+			int b = a + v * y + h * x;
+			pred[x][y] = sat(b >> 5);
+		}
+	}
 }
 
 void IntraEncoder::xComputeIntraMode(int mode, Pel* neighbors, Pel** pred) {
@@ -209,7 +233,7 @@ void IntraEncoder::xComputeIntraMode(int mode, Pel* neighbors, Pel** pred) {
 			xDCMode(neighbors, pred, BLOCK_SIZE);
 			break;
 		case PLANE_MODE: //TODO
-			//xPlaneMode(neighbors, pred);
+			xPlaneMode(neighbors, pred);
 			break;
 	}
 }
@@ -226,22 +250,22 @@ void IntraEncoder::xComputeSubIntraMode(int mode, Pel* neighbors, Pel** pred) {
 		case DC_SMODE:
 			xDCMode(neighbors, pred, SUB_BLOCK_SIZE);
 			break;
-		case DL_SMODE: //TODO
+		case DL_SMODE:
 			xDLMode(neighbors, pred);
 			break;
-		case DR_SMODE: //TODO
+		case DR_SMODE:
 			xDRMode(neighbors, pred);
 			break;
-		case VR_SMODE: //TODO
+		case VR_SMODE:
 			xVRMode(neighbors, pred);
 			break;
-		case HD_SMODE: //TODO
+		case HD_SMODE:
 			xHDMode(neighbors, pred);
 			break;
-		case VL_SMODE: //TODO
+		case VL_SMODE:
 			xVLMode(neighbors, pred);
 			break;
-		case HU_SMODE: //TODO
+		case HU_SMODE:
 			xHUMode(neighbors, pred);
 			break;
 	}
@@ -348,7 +372,8 @@ void IntraEncoder::encode() {
 
 						this->compressedBitCount += compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*SMODE_BIT_WIDTH);
 						this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
-
+						
+						
 						/*write back the residual information*/
 						vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
 						subModes.clear();
@@ -390,6 +415,24 @@ void IntraEncoder::report() {
 
 	cout << "LOSSLESS SAV:\t" << losslessSavings << endl;
 	cout << "AV. BIT/BLOCK:\t" << bitsPerBlock << endl;
+
+}
+
+void IntraEncoder::reportCSV() {
+	double blockPctg = this->blockChoices / (double) (this->blockChoices + this->subBlockChoices);
+	double subBlockPctg = 1 - blockPctg;
+
+	double losslessSavings = this->compressedBitCount / (double) (this->uncompressedBitCount);
+	losslessSavings = 1 - losslessSavings;
+
+	double bitsPerBlock = this->compressedBitCount / (double)(this->vh->getWidth() * this->vh->getHeight() * this->vh->getNumOfGOP() * this->vh->getNumOfViews() / (BLOCK_SIZE*BLOCK_SIZE) );
+
+	cout << vh->getVideoName() << ";";
+	cout << ((this->mode == I4_ONLY) ? "I4_ONLY" : (this->mode == I16_ONLY) ? "I16_ONLY" : "I4_I16") << ";";
+	cout << blockPctg << ";";
+	cout << subBlockPctg << ";";
+	cout << losslessSavings << ";";
+	cout << bitsPerBlock << endl;;
 
 }
 

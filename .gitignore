@@ -16,3 +16,4 @@ rf_compress
 *.mat
 *.yuv
 *.sh
+samples/

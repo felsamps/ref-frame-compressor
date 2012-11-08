@@ -20,13 +20,14 @@ int main(int argc, char** argv) {
 	string reconFileName(argv[6]);
 	string traceFileName(argv[7]);
 	string huffDictFileName(argv[8]);
+	string videoName(argv[9]);
 
-	VideoHandler* vh = new VideoHandler(w, h, nv, gops, reconFileName);
+	VideoHandler* vh = new VideoHandler(w, h, nv, gops, reconFileName, videoName);
 	Huffman *huffRes = new Huffman(huffDictFileName);
 	IntraEncoder* ie = new IntraEncoder(mode, vh, huffRes, traceFileName);
 
 	ie->encode();
-	ie->report();
+	ie->reportCSV();
 
 }
 

@@ -53,6 +53,7 @@ public:
     void encode();
 
     void report();
+    void reportCSV();
 
 };
 
