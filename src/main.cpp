@@ -6,6 +6,7 @@
 #include "../inc/Defines.h"
 #include "../inc/IntraEncoder.h"
 #include "../inc/Huffman.h"
+#include "../inc/Quantizer.h"
 
 using namespace std;
 
@@ -20,11 +21,13 @@ int main(int argc, char** argv) {
 	string reconFileName(argv[6]);
 	string traceFileName(argv[7]);
 	string huffDictFileName(argv[8]);
-	string videoName(argv[9]);
+	string videoFileName(argv[9]);
+	string quantFileName(argv[10]);
 
-	VideoHandler* vh = new VideoHandler(w, h, nv, gops, reconFileName, videoName);
+	VideoHandler* vh = new VideoHandler(w, h, nv, gops, reconFileName, videoFileName);
 	Huffman *huffRes = new Huffman(huffDictFileName);
-	IntraEncoder* ie = new IntraEncoder(mode, vh, huffRes, traceFileName);
+	Quantizer* q = new Quantizer(quantFileName);
+	IntraEncoder* ie = new IntraEncoder(mode, vh, huffRes, q, traceFileName);
 
 	ie->encode();
 	ie->reportCSV();

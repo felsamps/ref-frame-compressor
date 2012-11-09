@@ -22,10 +22,11 @@ int sat(int a) {
 	return (a < 0) ? 0 : (a > 255) ? 255 : a;
 }
 
-IntraEncoder::IntraEncoder(int mode, VideoHandler* vh, Huffman* huffRes, string name) {
+IntraEncoder::IntraEncoder(int mode, VideoHandler* vh, Huffman* huffRes, Quantizer* quant, string name) {
 	this->vh = vh;
 	this->huffRes = huffRes;
 	this->mode = mode;
+	this->quant = quant;
 
 	this->compressedBitCount = 0;
 	this->uncompressedBitCount = 0;
@@ -367,13 +368,16 @@ void IntraEncoder::encode() {
 
 							blockType = 'S';
 						}
+
+						/* Quantization */
+						this->quant->quantize(blockResidue, BLOCK_SIZE);
 						
+						/* Huffman */
 						list<char> compressed = this->huffRes->encodeBlock(blockResidue);
 
 						this->compressedBitCount += compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*SMODE_BIT_WIDTH);
 						this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
-						
-						
+
 						/*write back the residual information*/
 						vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
 						subModes.clear();

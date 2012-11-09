@@ -5,11 +5,13 @@
       <in>Defines.h</in>
       <in>Huffman.h</in>
       <in>IntraEncoder.h</in>
+      <in>Quantizer.h</in>
       <in>VideoHandler.h</in>
     </df>
     <df name="src" root="src">
       <in>Huffman.cpp</in>
       <in>IntraEncoder.cpp</in>
+      <in>Quantizer.cpp</in>
       <in>VideoHandler.cpp</in>
       <in>main.cpp</in>
     </df>

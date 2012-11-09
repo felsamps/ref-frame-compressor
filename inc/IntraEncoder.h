@@ -7,6 +7,7 @@
 
 #include "VideoHandler.h"
 #include "Huffman.h"
+#include "Quantizer.h"
 
 using namespace std;
 
@@ -14,6 +15,7 @@ class IntraEncoder {
 private:
     VideoHandler* vh;
     Huffman* huffRes;
+    Quantizer* quant;
     fstream traceFile;
     int mode;
     
@@ -48,7 +50,7 @@ private:
     void xReportStatus(int xx, int yy, int mode, Pel* neighbor, Pel** block, Pel** subBlockPred);
 
 public:
-    IntraEncoder(int mode, VideoHandler* vh, Huffman* huffRes, string name);
+    IntraEncoder(int mode, VideoHandler* vh, Huffman* huffRes, Quantizer* quant, string name);
 
     void encode();
 
