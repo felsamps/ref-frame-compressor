@@ -27,6 +27,8 @@ public:
     Pel** quantize(Pel** residue, int size);
     void invQuantize(Pel **residue, int size);
 
+    int getNumOfLevels();
+
 };
 
 #endif	/* _QUANTIZER_H */

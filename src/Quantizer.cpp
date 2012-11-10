@@ -91,3 +91,7 @@ void Quantizer::report() {
 		cout << (int)sample << " " << (int)this->iQuant[sample] << endl;
 	}
 }
+
+int Quantizer::getNumOfLevels() {
+	return this->numOfLevels;
+}

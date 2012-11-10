@@ -453,6 +453,7 @@ void IntraEncoder::reportCSV() {
 
 	cout << vh->getVideoName() << ";";
 	cout << ((this->mode == I4_ONLY) ? "I4_ONLY" : (this->mode == I16_ONLY) ? "I16_ONLY" : "I4_I16") << ";";
+	cout << this->quant->getNumOfLevels()-1 << ";";
 	cout << blockPctg << ";";
 	cout << subBlockPctg << ";";
 	cout << losslessSavings << ";";
