@@ -12,10 +12,22 @@ VideoHandler::VideoHandler(int w, int h, int nv, int gops, string name, string v
 
 	this->reconFrame = new Pel[w * h];
 	this->residualFrame = new Pel[w * h];
+	this->errorFrame = new Pel[w * h];
+
+	this->lossyReconFrame = new Pel**[nv];
+	for (int v = 0; v < nv; v++) {
+		this->lossyReconFrame[v] = new Pel*[1 + gops*GOP_SIZE];
+		for (int f = 0; f < (1 + gops*GOP_SIZE); f++) {
+			this->lossyReconFrame[v][f] = new Pel[(int)(w * h)];
+		}
+	}
+
+
 	this->modeFrame = new bool[(w/BLOCK_SIZE) * (h/BLOCK_SIZE)];
 
 	this->residualFile.open("residue.mat", fstream::out);
-	this->varFile.open("variance.mat", fstream::out);
+	this->errorFile.open("errors.mat", fstream::out);
+	
 
 	xInitFileNames(name);
 }
@@ -34,7 +46,7 @@ int VideoHandler::xCalcFilePos(int f) {
 
 void VideoHandler::xHandleTargetFile(int v, int f) {
 	if(this->targetView != v || this->targetFrame != f) {
-		if(this->targetView != -1) {
+		if(this->targetView != -1 && this->targetView != v) {
 			this->reconFile.close();
 		}
 		if(this->targetView != v) {
@@ -43,10 +55,12 @@ void VideoHandler::xHandleTargetFile(int v, int f) {
 
 		this->targetView = v;
 		this->targetFrame = f;
-
+		
 		int filePos = xCalcFilePos(f);
 		this->reconFile.seekg(filePos ,ios::beg);
 		this->reconFile.read(this->reconFrame, this->w * this->h);
+
+
 	}
 }
 
@@ -160,32 +174,63 @@ void VideoHandler::writeResidualFrameInFile() {
 	}
 }
 
-void VideoHandler::calcVar() {
-	for (int y = 0; y < this->h; y+=BLOCK_SIZE) {
-		for (int x = 0; x < this->w; x+=BLOCK_SIZE) {
-			int acum = 0;
-			for (int yy = 0; yy < BLOCK_SIZE; yy++) {
-				for (int xx = 0; xx < BLOCK_SIZE; xx++) {
-					acum += this->reconFrame[x+xx + (y+yy)*this->w];
-				}
-			}
-			double average = acum / (double)(BLOCK_SIZE*BLOCK_SIZE);
-			double dAcum = 0.0;
-			for (int yy = 0; yy < BLOCK_SIZE; yy++) {
-				for (int xx = 0; xx < BLOCK_SIZE; xx++) {
-					dAcum += pow(average - this->reconFrame[x+xx + (y+yy)*this->w], 2);
-				}
-			}
-			double variance = dAcum / (double)(BLOCK_SIZE*BLOCK_SIZE);
-			this->varFile << variance << " ";
+void VideoHandler::insertErrorBlock(Pel** block, int x, int y) {
+	for (int j = 0; j < BLOCK_SIZE; j++) {
+		for (int i = 0; i < BLOCK_SIZE; i++) {
+			this->errorFrame[(i+x) + (j+y) * this->w] = block[i][j];
 		}
-		this->varFile << endl;
 	}
+}
 
+void VideoHandler::writeErrorFrameInFile() {
+	for (int y = 0; y < this->h; y++) {
+		for (int x = 0; x < this->w; x++) {
+			this->errorFile << (int)this->errorFrame[x + y*this->w] << " ";
+		}
+		this->errorFile << endl;
+	}
+}
+
+void VideoHandler::insertLossyReconBlock(Pel** block, int view, int frame, int x, int y) {
+
+	for (int j = 0; j < BLOCK_SIZE; j++) {
+		for (int i = 0; i < BLOCK_SIZE; i++) {
+			this->lossyReconFrame[view][frame][(i+x) + (j+y) * this->w] = block[i][j];
+		}
+	}
+}
+
+void VideoHandler::writeLossyReconInFile() {
+	vector<string> intToStr;
+	intToStr.push_back("0");
+	intToStr.push_back("1");
+	intToStr.push_back("2");
+	this->reconFile.close();
+	
+	for (int v = 0; v < this->nv; v++) {
+		string fileName;
+		fileName = "lossy_recon_" + intToStr[v] + ".yuv";
+		this->lossyReconFile.open(fileName.c_str(), fstream::out);
+		this->reconFile.open(this->fileNames[v].c_str(), fstream::in);
+		for (int f = 0; f < this->gops*GOP_SIZE + 1; f++) {			
+			int framePos = xCalcFilePos(f) + (this->w*this->h);
+			this->reconFile.seekg(framePos, ios::beg);
+			
+			Pel* chroma = new Pel[ (this->w*this->h)/2];
+			this->reconFile.read(chroma, (this->w*this->h)/2 );
+
+			this->lossyReconFile.write(this->lossyReconFrame[v][f], this->w * this->h);
+			this->lossyReconFile.write(chroma, (this->w*this->h)/2 );
+		}
+		this->reconFile.close();
+		this->lossyReconFile.close();
+	}
 }
 
 void VideoHandler::closeFiles() {
 	this->residualFile.close();
+	this->errorFile.close();
+	this->lossyReconFile.close();
 }
 
 int VideoHandler::getHeight() {
@@ -207,3 +252,4 @@ int VideoHandler::getNumOfViews() {
 string VideoHandler::getVideoName() {
 	return this->videoName;
 }
+

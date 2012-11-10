@@ -24,7 +24,7 @@ public:
     Quantizer(string fileName);
     void report();
 
-    void quantize(Pel** residue, int size);
+    Pel** quantize(Pel** residue, int size);
     void invQuantize(Pel **residue, int size);
 
 };

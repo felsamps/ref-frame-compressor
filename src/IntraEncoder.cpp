@@ -289,6 +289,14 @@ void IntraEncoder::xCalcResidue(Pel** block, Pel** blockPred, Pel** blockResidue
 
 }
 
+void IntraEncoder::xReconstructBlock(Pel** pred, Pel** res) {
+	for (int y = 0; y < BLOCK_SIZE; y++) {
+		for (int x = 0; x < BLOCK_SIZE; x++) {
+			pred[x][y] += res[x][y];
+		}
+	}
+}
+
 void IntraEncoder::encode() {
 
 	/*loop over the views*/
@@ -311,6 +319,7 @@ void IntraEncoder::encode() {
 							blockResidue[i] = new Pel[BLOCK_SIZE];
 							blockPred[i] = new Pel[BLOCK_SIZE];
 						}
+
 
 						/* tracing file reading */
 						char blockType;
@@ -364,13 +373,16 @@ void IntraEncoder::encode() {
 								xComputeSubIntraMode(mode, neighbor, subBlockPred);
 								xCalcResidue(block,subBlockPred, subBlockResidue, SUB_BLOCK_SIZE);
 								xCopySubBlock(blockResidue,subBlockResidue, SUB_BLOCK_SIZE, xx, yy);
+								xCopySubBlock(blockPred, subBlockPred, SUB_BLOCK_SIZE, xx, yy);
 							}
 
 							blockType = 'S';
 						}
 
+
 						/* Quantization */
-						this->quant->quantize(blockResidue, BLOCK_SIZE);
+						Pel** error = this->quant->quantize(blockResidue, BLOCK_SIZE);
+						vh->insertErrorBlock(error, x, y);
 						
 						/* Huffman */
 						list<char> compressed = this->huffRes->encodeBlock(blockResidue);
@@ -380,15 +392,23 @@ void IntraEncoder::encode() {
 
 						/*write back the residual information*/
 						vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
+
+						/* Reconstruction with losses */
+						this->quant->invQuantize(blockResidue, BLOCK_SIZE);
+						this->xReconstructBlock(blockPred, blockResidue);
+						this->vh->insertLossyReconBlock(blockPred, vo, fo, x, y);
+
 						subModes.clear();
 
 					}
 				}
 				/*write the residual information of the frame in the file*/
 				vh->writeResidualFrameInFile();
+				vh->writeErrorFrameInFile();
 			}
 		}
 	}
+	vh->writeLossyReconInFile();
 	vh->closeFiles();
 }
 

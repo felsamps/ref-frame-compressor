@@ -21,9 +21,11 @@ private:
     int targetView, targetFrame;
     Pel* reconFrame;
     Pel* residualFrame;
+    Pel* errorFrame;
+    Pel*** lossyReconFrame;
     bool* modeFrame;
     vector<string> fileNames;
-    fstream reconFile, residualFile, varFile;
+    fstream reconFile, residualFile, errorFile, lossyReconFile;
     string videoName;
 
     void xInitFileNames(string name);
@@ -42,8 +44,15 @@ public:
     void insertResidualBlock(Pel** block, int x, int y, bool mode);
     void insertResidualSubBlock(Pel** block, int x, int y);
     void writeResidualFrameInFile();
-    void calcVar();
+
+    void insertErrorBlock(Pel** block, int x, int y);
+    void writeErrorFrameInFile();
+
+    void insertLossyReconBlock(Pel** block, int view, int frame, int x, int y);
+    void writeLossyReconInFile();
+
     void closeFiles();
+    
 
     int getNumOfGOP();
     int getNumOfViews();

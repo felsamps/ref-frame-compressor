@@ -42,6 +42,8 @@ private:
     void xCopyBlock(Pel** blk0, Pel** blk1, int size);
     void xCopySubBlock(Pel** blk0, Pel** blk1, int size, int x, int y);
 
+    void xReconstructBlock(Pel** pred, Pel** res);
+
     void xCalcResidue(Pel **block, Pel **blockPred, Pel **blockResidue, int size);
 
     pair<IntraMode, int> xEncodeBlock(int v, int f, int x, int y, Pel** residue);
