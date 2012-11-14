@@ -22,6 +22,7 @@ public:
     Huffman(string fileName);
     
     list<char> encodeBlock(Pel** block);
+    list<char> encodeSubBlock(Pel** block, int xx, int yy);
 
 };
 

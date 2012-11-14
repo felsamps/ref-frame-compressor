@@ -19,10 +19,10 @@ private:
 
     int w, h, nv, gops;
     int targetView, targetFrame;
-    Pel* reconFrame;
+    UPel* reconFrame;
     Pel* residualFrame;
     Pel* errorFrame;
-    Pel*** lossyReconFrame;
+    UPel*** lossyReconFrame;
     bool* modeFrame;
     vector<string> fileNames;
     fstream reconFile, residualFile, errorFile, lossyReconFile;
@@ -35,20 +35,20 @@ private:
 public:
     VideoHandler(int w, int h, int nv, int nf, string name, string videoName);
 
-    Pel** getBlock(int v, int f, int x, int y);
-    Pel* getNeighboring(int v, int f, int x, int y);
+    UPel** getBlock(int v, int f, int x, int y);
+    UPel* getNeighboring(int v, int f, int x, int y);
 
-    Pel** getSubBlock(int v, int f, int x, int y);
-    Pel* getSubNeighboring(int v, int f, int x, int y);
+    UPel** getSubBlock(int v, int f, int x, int y);
+    UPel* getSubNeighboring(int v, int f, int x, int y);
 
     void insertResidualBlock(Pel** block, int x, int y, bool mode);
-    void insertResidualSubBlock(Pel** block, int x, int y);
+    void insertResidualSubBlock(Pel** block, int x, int y, int xx, int yy);
     void writeResidualFrameInFile();
 
     void insertErrorBlock(Pel** block, int x, int y);
     void writeErrorFrameInFile();
 
-    void insertLossyReconBlock(Pel** block, int view, int frame, int x, int y);
+    void insertLossyReconBlock(int** block, int view, int frame, int x, int y);
     void writeLossyReconInFile();
 
     void closeFiles();

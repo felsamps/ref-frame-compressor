@@ -14,10 +14,19 @@
 #define SAMPLE_BIT_WIDTH 8
 #define SMODE_BIT_WIDTH 4
 #define MODE_BIT_WIDTH 2
+#define ADAPTIVE_QUANT_ID_BIT_WIDTH 2
 
 #define GOP_SIZE 8
 
+#define TH0 1000
+#define TH1 2000
+#define TH2 3000
+
+
+
 typedef char Pel;
+
+typedef unsigned char UPel;
 
 enum IntraMode {
     VER_MODE,

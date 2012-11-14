@@ -54,7 +54,7 @@ void Quantizer::xGenerateQuantTable() {
 	}
 }
 
-Pel** Quantizer::quantize(Pel** residue, int size) {
+Pel** Quantizer::quantize(Pel** residue, int size, int xx, int yy) {
 	Pel** error = new Pel*[size];
 	for (int i = 0; i < size; i++) {
 		error[i] = new Pel[size];
@@ -62,18 +62,18 @@ Pel** Quantizer::quantize(Pel** residue, int size) {
 
 	for (int y = 0; y < size; y++) {
 		for (int x = 0; x < size; x++) {
-			Pel quantized = this->fQuant[residue[x][y]];
-			error[x][y] = residue[x][y] - iQuant[quantized];
-			residue[x][y] = quantized;			
+			Pel quantized = this->fQuant[residue[x+xx][y+yy]];
+			error[x][y] = residue[x+xx][y+yy] - iQuant[quantized];
+			residue[x+xx][y+yy] = quantized;
 		}
 	}
 	return error;
 }
 
-void Quantizer::invQuantize(Pel** quantized, int size) {
+void Quantizer::invQuantize(Pel** quantized, int size,  int xx, int yy) {
 	for (int y = 0; y < size; y++) {
 		for (int x = 0; x < size; x++) {
-			quantized[x][y] = this->iQuant[quantized[x][y]];
+			quantized[x+xx][y+yy] = this->iQuant[quantized[x+xx][y+yy]];
 		}
 	}
 }

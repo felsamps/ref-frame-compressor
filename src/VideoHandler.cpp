@@ -10,15 +10,15 @@ VideoHandler::VideoHandler(int w, int h, int nv, int gops, string name, string v
 	this->targetFrame = -1;
 	this->targetView = -1;
 
-	this->reconFrame = new Pel[w * h];
+	this->reconFrame = new UPel[w * h];
 	this->residualFrame = new Pel[w * h];
 	this->errorFrame = new Pel[w * h];
 
-	this->lossyReconFrame = new Pel**[nv];
+	this->lossyReconFrame = new UPel**[nv];
 	for (int v = 0; v < nv; v++) {
-		this->lossyReconFrame[v] = new Pel*[1 + gops*GOP_SIZE];
+		this->lossyReconFrame[v] = new UPel*[1 + gops*GOP_SIZE];
 		for (int f = 0; f < (1 + gops*GOP_SIZE); f++) {
-			this->lossyReconFrame[v][f] = new Pel[(int)(w * h)];
+			this->lossyReconFrame[v][f] = new UPel[(int)(w * h)];
 		}
 	}
 
@@ -58,18 +58,18 @@ void VideoHandler::xHandleTargetFile(int v, int f) {
 		
 		int filePos = xCalcFilePos(f);
 		this->reconFile.seekg(filePos ,ios::beg);
-		this->reconFile.read(this->reconFrame, this->w * this->h);
+		this->reconFile.read((char*)this->reconFrame, this->w * this->h);
 
 
 	}
 }
 
-Pel** VideoHandler::getBlock(int v, int f, int x, int y) {
+UPel** VideoHandler::getBlock(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
-	Pel **returnable = new Pel*[BLOCK_SIZE];
+	UPel **returnable = new UPel*[BLOCK_SIZE];
 	for (int i = 0; i < BLOCK_SIZE; i++) {
-		returnable[i] = new Pel[BLOCK_SIZE];
+		returnable[i] = new UPel[BLOCK_SIZE];
 	}
 
 	for (int j = 0; j < BLOCK_SIZE; j++) {
@@ -82,12 +82,12 @@ Pel** VideoHandler::getBlock(int v, int f, int x, int y) {
 
 }
 
-Pel **VideoHandler::getSubBlock(int v, int f, int x, int y) {
+UPel **VideoHandler::getSubBlock(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
-	Pel **returnable = new Pel*[SUB_BLOCK_SIZE];
+	UPel **returnable = new UPel*[SUB_BLOCK_SIZE];
 	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
-		returnable[i] = new Pel[SUB_BLOCK_SIZE];
+		returnable[i] = new UPel[SUB_BLOCK_SIZE];
 	}
 
 	for (int j = 0; j < SUB_BLOCK_SIZE; j++) {
@@ -101,10 +101,10 @@ Pel **VideoHandler::getSubBlock(int v, int f, int x, int y) {
 
 
 
-Pel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
+UPel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
-	Pel *returnable = new Pel[2*BLOCK_SIZE + 1];
+	UPel *returnable = new UPel[2*BLOCK_SIZE + 1];
 	
 	/* upper-right neighbor sample */
 	returnable[BLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
@@ -123,10 +123,10 @@ Pel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
 	
 }
 
-Pel* VideoHandler::getSubNeighboring(int v, int f, int x, int y) {
+UPel* VideoHandler::getSubNeighboring(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
-	Pel *returnable = new Pel[3*SUB_BLOCK_SIZE + 1];
+	UPel *returnable = new UPel[3*SUB_BLOCK_SIZE + 1];
 
 	/* upper-right neighbor sample */
 	returnable[SUB_BLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
@@ -157,10 +157,10 @@ void VideoHandler::insertResidualBlock(Pel** block, int x, int y, bool mode) {
 	this->modeFrame[x/BLOCK_SIZE + (y/BLOCK_SIZE)+this->w] = mode;
 }
 
-void VideoHandler::insertResidualSubBlock(Pel** block, int x, int y) {
+void VideoHandler::insertResidualSubBlock(Pel** block, int x, int y, int xx, int yy) {
 	for (int j = 0; j < SUB_BLOCK_SIZE; j++) {
 		for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
-			this->residualFrame[(i+x) + (j+y) * this->w] = block[i][j];
+			this->residualFrame[(i+xx) + (j+yy) * this->w] = block[i+x][j+y];
 		}
 	}
 }
@@ -191,13 +191,14 @@ void VideoHandler::writeErrorFrameInFile() {
 	}
 }
 
-void VideoHandler::insertLossyReconBlock(Pel** block, int view, int frame, int x, int y) {
+void VideoHandler::insertLossyReconBlock(int** block, int view, int frame, int x, int y) {
 
 	for (int j = 0; j < BLOCK_SIZE; j++) {
 		for (int i = 0; i < BLOCK_SIZE; i++) {
-			this->lossyReconFrame[view][frame][(i+x) + (j+y) * this->w] = block[i][j];
+			this->lossyReconFrame[view][frame][(i+x) + (j+y) * this->w] = (UPel) block[i][j];
 		}
 	}
+	
 }
 
 void VideoHandler::writeLossyReconInFile() {
@@ -216,11 +217,11 @@ void VideoHandler::writeLossyReconInFile() {
 			int framePos = xCalcFilePos(f) + (this->w*this->h);
 			this->reconFile.seekg(framePos, ios::beg);
 			
-			Pel* chroma = new Pel[ (this->w*this->h)/2];
-			this->reconFile.read(chroma, (this->w*this->h)/2 );
+			UPel* chroma = new UPel[ (this->w*this->h)/2];
+			this->reconFile.read((char*)chroma, (this->w*this->h)/2 );
 
-			this->lossyReconFile.write(this->lossyReconFrame[v][f], this->w * this->h);
-			this->lossyReconFile.write(chroma, (this->w*this->h)/2 );
+			this->lossyReconFile.write((char*)this->lossyReconFrame[v][f], this->w * this->h);
+			this->lossyReconFile.write((char*)chroma, (this->w*this->h)/2 );
 		}
 		this->reconFile.close();
 		this->lossyReconFile.close();

@@ -14,45 +14,67 @@ using namespace std;
 class IntraEncoder {
 private:
     VideoHandler* vh;
-    Huffman* huffRes;
-    Quantizer* quant;
+    Huffman *huffRes, *huffRes16, *huffRes32, *huffRes64;
+    Quantizer *quant, *quant16, *quant32, *quant64;
     fstream traceFile;
+    fstream costFile;
     int mode;
+    int opMode;
     
     long long int blockChoices, subBlockChoices;
     long long int compressedBitCount, uncompressedBitCount;
 
+    void xInitCounters();
 
     int xCalcSAD(Pel** blk0, Pel** blk1);
 
-    void xComputeIntraMode(int mode, Pel* neighbors, Pel** pred);
-    void xComputeSubIntraMode(int mode, Pel* neighbors,  Pel** pred);
-    void xHorizonalMode(Pel* neighbors, Pel** pred, int size);
-    void xVerticalMode(Pel* neighbors, Pel** pred, int size);
-    void xDiagonalMode(Pel* neighbors, Pel** pred, int size);
-    void xDCMode(Pel* neighbors, Pel** pred, int size);
-    void xPlaneMode(Pel* neighbors, Pel** pred);
-    void xDLMode(Pel* neighbors, Pel** pred);
-    void xDRMode(Pel* neighbors, Pel** pred);
-    void xVRMode(Pel* neighbors, Pel** pred);
-    void xHDMode(Pel* neighbors, Pel** pred);
-    void xVLMode(Pel* neighbors, Pel** pred);
-    void xHUMode(Pel* neighbors, Pel** pred);
+    void xComputeIntraMode(int mode, UPel* neighbors, int** pred);
+    void xComputeSubIntraMode(int mode, UPel* neighbors,  int** pred);
+    void xHorizonalMode(UPel* neighbors, int** pred, int size);
+    void xVerticalMode(UPel* neighbors, int** pred, int size);
+    void xDiagonalMode(UPel* neighbors, int** pred, int size);
+    void xDCMode(UPel* neighbors, int** pred, int size);
+    void xPlaneMode(UPel* neighbors, int** pred);
+    void xDLMode(UPel* neighbors, int** pred);
+    void xDRMode(UPel* neighbors, int** pred);
+    void xVRMode(UPel* neighbors, int** pred);
+    void xHDMode(UPel* neighbors, int** pred);
+    void xVLMode(UPel* neighbors, int** pred);
+    void xHUMode(UPel* neighbors, int** pred);
 
     void xCopyBlock(Pel** blk0, Pel** blk1, int size);
-    void xCopySubBlock(Pel** blk0, Pel** blk1, int size, int x, int y);
+    void xCopyPelSubBlock(Pel** blk0, Pel** blk1, int size, int x, int y);
+    void xCopyIntSubBlock(int** blk0, int** blk1, int size, int x, int y);
+    void xFillZero(Pel** blk, int size,  int xx, int yy);
 
-    void xReconstructBlock(Pel** pred, Pel** res);
+    void xReconstructBlock(int** pred, Pel** res);
 
-    void xCalcResidue(Pel **block, Pel **blockPred, Pel **blockResidue, int size);
+    void xCalcResidue(UPel **block, int **blockPred, Pel **blockResidue, int size);
 
     pair<IntraMode, int> xEncodeBlock(int v, int f, int x, int y, Pel** residue);
     pair<vector<IntraMode>, int> xEncodeSubBlock(int v, int f, int x, int y, Pel** residue);
 
-    void xReportStatus(int xx, int yy, int mode, Pel* neighbor, Pel** block, Pel** subBlockPred);
+    void xReportStatus(int xx, int yy, int mode, UPel* neighbor, UPel** block, int** subBlockPred);
 
 public:
-    IntraEncoder(int mode, VideoHandler* vh, Huffman* huffRes, Quantizer* quant, string name);
+    
+    IntraEncoder(int opMode, int mode, VideoHandler* vh, string name); //MODE 0
+    IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Huffman* huffRes); //MODE 1
+    IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Quantizer* quant); //MODE 2
+    IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Huffman* huffRes, Quantizer* quant); //MODE 3
+    IntraEncoder(int opMode,
+                 int mode,
+                 VideoHandler* vh,
+                 string name,
+                 Huffman* huffRes,
+                 Huffman* huffRes16,
+                 Huffman* huffRes32,
+                 Huffman* huffRes64,
+                 Quantizer* quant16,
+                 Quantizer* quant32,
+                 Quantizer* quant64,
+                 string costFileName); //MODE 4
+    
 
     void encode();
 

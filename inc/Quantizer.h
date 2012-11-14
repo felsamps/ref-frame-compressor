@@ -24,8 +24,8 @@ public:
     Quantizer(string fileName);
     void report();
 
-    Pel** quantize(Pel** residue, int size);
-    void invQuantize(Pel **residue, int size);
+    Pel** quantize(Pel** residue, int size,  int x, int y);
+    void invQuantize(Pel **residue, int size,  int x, int y);
 
     int getNumOfLevels();
 
