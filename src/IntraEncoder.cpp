@@ -101,7 +101,7 @@ void IntraEncoder::xVerticalMode(UPel* neighbors, int** pred, int size) {
 	for (int y = 0; y < size; y++) {
 		for (int x = 0; x < size; x++) {
 			if(isUpRef) {
-				Pel predSample = neighbors[(size+1) + x];
+				int predSample = neighbors[(size+1) + x];
 				pred[x][y] = predSample;
 			}
 		}
@@ -169,13 +169,13 @@ void IntraEncoder::xDLMode(UPel* neighbors, int** pred) {
 void IntraEncoder::xVRMode(UPel* neighbors, int** pred) {
 	pred[0][0] = pred[1][2] = (neighbors[5] + neighbors[4] + 1) >> 1;
 	pred[1][0] = pred[2][2] = (neighbors[6] + neighbors[5] + 1) >> 1;
-	pred[2][0] = pred[2][2] = (neighbors[7] + neighbors[6] + 1) >> 1;
+	pred[2][0] = pred[3][2] = (neighbors[7] + neighbors[6] + 1) >> 1;
 	pred[3][0] = (neighbors[8] + neighbors[7] + 1) >> 1;
 	
 	pred[0][1] = pred[1][3] = (neighbors[3] + neighbors[4]*2 + neighbors[5] + 2) >> 2;
 	pred[1][1] = pred[2][3] = (neighbors[4] + neighbors[5]*2 + neighbors[6] + 2) >> 2;
 	pred[2][1] = pred[3][3] = (neighbors[5] + neighbors[6]*2 + neighbors[7] + 2) >> 2;
-	pred[3][1] =              (neighbors[3] + neighbors[2]*2 + neighbors[1] + 2) >> 2;
+	pred[3][1] =              (neighbors[6] + neighbors[7]*2 + neighbors[8] + 2) >> 2;
 
 	pred[0][2] = (neighbors[2] + neighbors[3]*2 + neighbors[4] + 2) >> 2;
 	pred[0][3] = (neighbors[1] + neighbors[2]*2 + neighbors[3] + 2) >> 2;
@@ -339,12 +339,17 @@ void IntraEncoder::xFillZero(Pel** blk, int size, int xx, int yy) {
 	}
 }
 
-void IntraEncoder::xReconstructBlock(int** pred, Pel** res) {
+UPel** IntraEncoder::xReconstructBlock(int** pred, Pel** res) {
+	UPel** returnable = new UPel*[BLOCK_SIZE];
+	for (int i = 0; i < BLOCK_SIZE; i++) {
+		returnable[i] = new UPel[BLOCK_SIZE];
+	}
 	for (int y = 0; y < BLOCK_SIZE; y++) {
 		for (int x = 0; x < BLOCK_SIZE; x++) {
-			pred[x][y] += res[x][y];
+			returnable[x][y] = UPel((UPel)(pred[x][y]) + res[x][y]);
 		}
 	}
+	return returnable;
 }
 
 void IntraEncoder::encode() {
@@ -357,8 +362,7 @@ void IntraEncoder::encode() {
 			for (int f = (g==0) ? 0:1 ; f < GOP_SIZE+1; f++) {
 				int vo = viewOrder[v];
 				int fo = frameGOPOrder[f] + GOP_SIZE*g;
-
-				cout << vo << " " << fo << endl;
+				
 				/*loop over the blocks*/
 				Pel **blockResidue;
 				int **blockPred;
@@ -368,12 +372,8 @@ void IntraEncoder::encode() {
 					blockResidue[i] = new Pel[BLOCK_SIZE];
 					blockPred[i] = new int[BLOCK_SIZE];
 				}
-				
 				for (int y = 0; y < this->vh->getHeight(); y+=BLOCK_SIZE) {
 					for (int x = 0; x < this->vh->getWidth(); x+=BLOCK_SIZE) {
-						
-
-
 						/* tracing file reading */
 						char blockType;
 
@@ -424,16 +424,11 @@ void IntraEncoder::encode() {
 								UPel **block = vh->getSubBlock(vo, fo, x+xx, y+yy);
 								UPel *neighbor = vh->getSubNeighboring(vo, fo, x+xx, y+yy);
 
+
 								xComputeSubIntraMode(subModes[i], neighbor, subBlockPred);
 								xCalcResidue(block,subBlockPred, subBlockResidue, SUB_BLOCK_SIZE);
 								xCopyPelSubBlock(blockResidue,subBlockResidue, SUB_BLOCK_SIZE, xx, yy);
 								xCopyIntSubBlock(blockPred, subBlockPred, SUB_BLOCK_SIZE, xx, yy);
-/*
-								if(subModes[i] == 3) {
-								xReportStatus(xx+x, yy+y, subModes[i], neighbor, block, subBlockPred);
-								getchar();
-								}*/
-
 							}
 							this->subBlockChoices ++;
 							blockType = 'S';
@@ -441,6 +436,7 @@ void IntraEncoder::encode() {
 
 						list<char> compressed;
 						Pel** error;
+						UPel** recBlock;
 
 						switch(this->opMode) {
 							case 0:
@@ -457,18 +453,21 @@ void IntraEncoder::encode() {
 								vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
 								break;
 							case 2:
+
 								/* Quantization */
 								error = this->quant->quantize(blockResidue, BLOCK_SIZE, 0, 0);
 								vh->insertErrorBlock(error, x, y);
-
-								vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
 								
+								vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
+
 								this->quant->invQuantize(blockResidue, BLOCK_SIZE, 0, 0);
-								this->xReconstructBlock(blockPred, blockResidue);
-								this->vh->insertLossyReconBlock(blockPred, vo, fo, x, y);
+								recBlock = this->xReconstructBlock(blockPred, blockResidue);
+													
+								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
 
 								break;
 							case 3:
+
 								/* Quantization */
 								error = this->quant->quantize(blockResidue, BLOCK_SIZE, 0, 0);
 								vh->insertErrorBlock(error, x, y);
@@ -483,8 +482,8 @@ void IntraEncoder::encode() {
 								//cout << x << " " << y << " " << compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*SMODE_BIT_WIDTH) << endl;
 
 								this->quant->invQuantize(blockResidue, BLOCK_SIZE, 0, 0);
-								this->xReconstructBlock(blockPred, blockResidue);
-								this->vh->insertLossyReconBlock(blockPred, vo, fo, x, y);
+								recBlock = this->xReconstructBlock(blockPred, blockResidue);
+								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
 
 								break;
 							case 4:
@@ -522,17 +521,6 @@ void IntraEncoder::encode() {
 										xFillZero(error, SUB_BLOCK_SIZE, xx, yy);
 									}
 
-									/*
-									for (int k = 0; k < 16; k++) {
-										for (int w = 0; w < 16; w++) {
-											cout << (int)blockResidue[w][k] << " ";
-										}
-										cout << endl;
-									}
-									cout << endl;
-									getchar();*/
-
-
 									vh->insertResidualSubBlock(blockResidue, xx, yy, xx+x, yy+y);
 
 									/* Huffman */
@@ -549,8 +537,8 @@ void IntraEncoder::encode() {
 								this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
 								//cout << x << " " << y << " " << blockLen << endl;
 								this->vh->insertErrorBlock(error, x, y);
-								this->xReconstructBlock(blockPred, blockResidue);
-								this->vh->insertLossyReconBlock(blockPred, vo, fo, x, y);
+								recBlock = this->xReconstructBlock(blockPred, blockResidue);
+								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
 								break;
 								
 						}
@@ -660,5 +648,6 @@ void IntraEncoder::xReportStatus(int xx, int yy, int mode, UPel* neighbor, UPel*
 		}
 		cout << endl;
 	}
+	getchar();
 	
 }

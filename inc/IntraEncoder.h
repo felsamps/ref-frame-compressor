@@ -47,7 +47,7 @@ private:
     void xCopyIntSubBlock(int** blk0, int** blk1, int size, int x, int y);
     void xFillZero(Pel** blk, int size,  int xx, int yy);
 
-    void xReconstructBlock(int** pred, Pel** res);
+    UPel** xReconstructBlock(int** pred, Pel** res);
 
     void xCalcResidue(UPel **block, int **blockPred, Pel **blockResidue, int size);
 

@@ -48,7 +48,7 @@ public:
     void insertErrorBlock(Pel** block, int x, int y);
     void writeErrorFrameInFile();
 
-    void insertLossyReconBlock(int** block, int view, int frame, int x, int y);
+    void insertLossyReconBlock(UPel** block, int view, int frame, int x, int y);
     void writeLossyReconInFile();
 
     void closeFiles();

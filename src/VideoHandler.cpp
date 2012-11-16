@@ -191,11 +191,11 @@ void VideoHandler::writeErrorFrameInFile() {
 	}
 }
 
-void VideoHandler::insertLossyReconBlock(int** block, int view, int frame, int x, int y) {
+void VideoHandler::insertLossyReconBlock(UPel** block, int view, int frame, int x, int y) {
 
 	for (int j = 0; j < BLOCK_SIZE; j++) {
 		for (int i = 0; i < BLOCK_SIZE; i++) {
-			this->lossyReconFrame[view][frame][(i+x) + (j+y) * this->w] = (UPel) block[i][j];
+			this->lossyReconFrame[view][frame][(i+x) + (j+y) * this->w] = block[i][j];
 		}
 	}
 	

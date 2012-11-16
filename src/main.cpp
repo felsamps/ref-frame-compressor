@@ -69,7 +69,6 @@ int main(int argc, char** argv) {
 			quantFileName.assign(argv[9]);
 
 			q = new Quantizer(quantFileName);
-			q->report();
 			vh = new VideoHandler(w, h, nv, gops, reconFileName, " ");
 			ie = new IntraEncoder(opMode, mode, vh, traceFileName, q); //TODO
 			break;
