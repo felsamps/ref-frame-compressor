@@ -540,7 +540,61 @@ void IntraEncoder::encode() {
 								recBlock = this->xReconstructBlock(blockPred, blockResidue);
 								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
 								break;
-								
+
+							case 5:
+								error = new Pel*[BLOCK_SIZE];
+								for (int i = 0; i < BLOCK_SIZE; i++) {
+									error[i] = new Pel[BLOCK_SIZE];
+
+								}
+
+								for(int i=0; i<16; i++)	{
+									int xx = zzBlockOrder[i][0] * SUB_BLOCK_SIZE;
+									int yy = zzBlockOrder[i][1] * SUB_BLOCK_SIZE;
+
+									/* The costFile is now the quantization strength file */
+									unsigned int cost;
+									this->costFile >> cost;
+
+									/* In according with the THs, apply the rigth quantization level */
+									Quantizer *targetQuant = (cost == 0) ? this->quant16 :
+															 (cost == 1) ? this->quant32 :
+														     (cost == 2) ? this->quant64 :
+															 NULL; //(cost > TH2)
+
+									Huffman *targetHuff = (cost == 0) ? this->huffRes16 :
+														  (cost == 1) ? this->huffRes32 :
+														  (cost == 2) ? this->huffRes64 :
+														  this->huffRes; //(cost > TH2)
+
+
+									if(targetQuant != NULL) {
+										Pel** subError = targetQuant->quantize(blockResidue, SUB_BLOCK_SIZE, xx, yy);
+										xCopyPelSubBlock(error, subError, SUB_BLOCK_SIZE, xx, yy);
+									}
+									else {
+										xFillZero(error, SUB_BLOCK_SIZE, xx, yy);
+									}
+
+									vh->insertResidualSubBlock(blockResidue, xx, yy, xx+x, yy+y);
+
+									/* Huffman */
+									compressed = targetHuff->encodeSubBlock(blockResidue, xx, yy);
+									this->compressedBitCount += (compressed.size() + (SMODE_BIT_WIDTH) + ADAPTIVE_QUANT_ID_BIT_WIDTH);
+
+
+
+									if(targetQuant != NULL) {
+										targetQuant->invQuantize(blockResidue, SUB_BLOCK_SIZE, xx, yy);
+									}
+
+								}
+								this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
+								//cout << x << " " << y << " " << blockLen << endl;
+								this->vh->insertErrorBlock(error, x, y);
+								recBlock = this->xReconstructBlock(blockPred, blockResidue);
+								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
+								break;
 						}
 
 						subModes.clear();

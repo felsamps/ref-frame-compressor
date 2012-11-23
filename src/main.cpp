@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
 	string quant32FileName;
 	string quant64FileName;
 	string costFile;
+	string quantFile;
 
 	Quantizer* q;
 	Quantizer* q16;
@@ -69,6 +70,7 @@ int main(int argc, char** argv) {
 			quantFileName.assign(argv[9]);
 
 			q = new Quantizer(quantFileName);
+			q->report();
 			vh = new VideoHandler(w, h, nv, gops, reconFileName, " ");
 			ie = new IntraEncoder(opMode, mode, vh, traceFileName, q); //TODO
 			break;
@@ -106,6 +108,30 @@ int main(int argc, char** argv) {
 			vh = new VideoHandler(w, h, nv, gops, reconFileName, videoFileName);
 			ie = new IntraEncoder(opMode, mode, vh, traceFileName, huffRes, huffRes16, huffRes32, huffRes64, q16, q32, q64, costFile);
 			break;
+
+		case 5:
+			huffDictFileName.assign(argv[9]);
+			huff16DictFileName.assign(argv[10]);
+			huff32DictFileName.assign(argv[11]);
+			huff64DictFileName.assign(argv[12]);
+			quant16FileName.assign(argv[13]);
+			quant32FileName.assign(argv[14]);
+			quant64FileName.assign(argv[15]);
+			videoFileName.assign(argv[16]);
+			quantFile.assign(argv[17]);
+
+			huffRes = new Huffman(huffDictFileName);
+			huffRes16 = new Huffman(huff16DictFileName);
+			huffRes32 = new Huffman(huff32DictFileName);
+			huffRes64 = new Huffman(huff64DictFileName);
+			q16 = new Quantizer(quant16FileName);
+			q32 = new Quantizer(quant32FileName);
+			q64 = new Quantizer(quant64FileName);
+
+			vh = new VideoHandler(w, h, nv, gops, reconFileName, videoFileName);
+			ie = new IntraEncoder(opMode, mode, vh, traceFileName, huffRes, huffRes16, huffRes32, huffRes64, q16, q32, q64, quantFile);
+			break;
+
 	}
 
 	ie->encode();
