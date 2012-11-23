@@ -661,10 +661,10 @@ void IntraEncoder::reportCSV() {
 
 	double bitsPerBlock = this->compressedBitCount / (double)(this->vh->getWidth() * this->vh->getHeight() * this->vh->getNumOfGOP() * this->vh->getNumOfViews() / (BLOCK_SIZE*BLOCK_SIZE) );
 
-	if(opMode == 1 || opMode == 3 || opMode == 4) {
+	if(opMode == 1 || opMode == 3 || opMode == 4 || opMode == 5) {
 		cout << vh->getVideoName() << ";";
 		cout << ((this->mode == I4_ONLY) ? "I4_ONLY" : (this->mode == I16_ONLY) ? "I16_ONLY" : "I4_I16") << ";";
-		if(opMode != 1 && opMode != 4) {
+		if(opMode != 1 && opMode != 4 && opMode != 5) {
 			cout << this->quant->getNumOfLevels()-1 << ";";
 		}
 		cout << blockPctg << ";";
