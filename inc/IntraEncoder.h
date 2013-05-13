@@ -8,18 +8,20 @@
 #include "VideoHandler.h"
 #include "Huffman.h"
 #include "Quantizer.h"
+#include "Statistics.h"
 
 using namespace std;
 
 class IntraEncoder {
 private:
     VideoHandler* vh;
-    Huffman *huffRes, *huffRes16, *huffRes32, *huffRes64;
-    Quantizer *quant, *quant16, *quant32, *quant64;
+    Huffman *huffRes, *huffRes0, *huffRes1, *huffRes2;
+    Quantizer *quant, *quant0, *quant1, *quant2;
     fstream traceFile;
     fstream costFile;
     int mode;
     int opMode;
+    Statistics* stats;
     
     long long int blockChoices, subBlockChoices;
     long long int compressedBitCount, uncompressedBitCount;
@@ -29,7 +31,7 @@ private:
     int xCalcSAD(Pel** blk0, Pel** blk1);
 
     void xComputeIntraMode(int mode, UPel* neighbors, int** pred);
-    void xComputeSubIntraMode(int mode, UPel* neighbors,  int** pred);
+    void xComputeI4IntraMode(int mode, UPel* neighbors,  int** pred);
     void xHorizonalMode(UPel* neighbors, int** pred, int size);
     void xVerticalMode(UPel* neighbors, int** pred, int size);
     void xDiagonalMode(UPel* neighbors, int** pred, int size);
@@ -54,12 +56,13 @@ private:
     pair<IntraMode, int> xEncodeBlock(int v, int f, int x, int y, Pel** residue);
     pair<vector<IntraMode>, int> xEncodeSubBlock(int v, int f, int x, int y, Pel** residue);
 
-    void xReportStatus(int xx, int yy, int mode, UPel* neighbor, UPel** block, int** subBlockPred);
+    void xReportStatus(int xx, int yy, int mode, UPel* neighbor, UPel** block, int** macrolockPred, Pel** macrolockResidue);
+   
 
 public:
     
-    IntraEncoder(int opMode, int mode, VideoHandler* vh, string name); //MODE 0
-    IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Huffman* huffRes); //MODE 1
+    IntraEncoder(int opMode, VideoHandler* vh, string name); //MODE 0
+    IntraEncoder(int opMode, VideoHandler* vh, string name, Huffman* huffRes); //MODE 1
     IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Quantizer* quant); //MODE 2
     IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Huffman* huffRes, Quantizer* quant); //MODE 3
     IntraEncoder(int opMode,
@@ -79,7 +82,8 @@ public:
     void encode();
 
     void report();
-    void reportCSV();
+    void reportCSV(); 
+    void reportOcc();
 
 };
 

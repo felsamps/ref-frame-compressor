@@ -1,15 +1,8 @@
 #ifndef _DEFINES_H
 #define	_DEFINES_H
 
-#define I4_ONLY 0
-#define I16_ONLY 1
-#define I4_I16 2
-
-#define BLOCK_SIZE 16
-#define SUB_BLOCK_SIZE 4
-
-#define BLOCK_MODE true
-#define SUB_BLOCK_MODE false
+#define MACROBLOCK_SIZE 16
+#define BLOCK_SIZE 4
 
 #define SAMPLE_BIT_WIDTH 8
 #define SMODE_BIT_WIDTH 4
@@ -22,7 +15,8 @@
 #define TH1 2000
 #define TH2 3000
 
-
+#define SIGMA_TIMES 2
+#define SIGMA_PCTG 0.042
 
 typedef char Pel;
 
@@ -47,15 +41,15 @@ enum SubIntraMode {
     HU_SMODE
 };
 
-#define A_S (SUB_BLOCK_SIZE+1)
-#define B_S (SUB_BLOCK_SIZE+2)
-#define C_S (SUB_BLOCK_SIZE+3)
-#define D_S (SUB_BLOCK_SIZE+4)
-#define I_S (SUB_BLOCK_SIZE-1)
-#define J_S (SUB_BLOCK_SIZE-2)
-#define K_S (SUB_BLOCK_SIZE-3)
-#define L_S (SUB_BLOCK_SIZE-4)
-#define M_S (SUB_BLOCK_SIZE)
+#define A_S (BLOCK_SIZE+1)
+#define B_S (BLOCK_SIZE+2)
+#define C_S (BLOCK_SIZE+3)
+#define D_S (BLOCK_SIZE+4)
+#define I_S (BLOCK_SIZE-1)
+#define J_S (BLOCK_SIZE-2)
+#define K_S (BLOCK_SIZE-3)
+#define L_S (BLOCK_SIZE-4)
+#define M_S (BLOCK_SIZE)
 
 
 

@@ -1,6 +1,7 @@
 #include <list>
 
 #include "../inc/IntraEncoder.h"
+#include "../inc/Statistics.h"
 
 int zzBlockOrder[16][2] =
 {
@@ -22,17 +23,15 @@ int sat(int a) {
 	return (a < 0) ? 0 : (a > 255) ? 255 : a;
 }
 
-IntraEncoder::IntraEncoder(int opMode, int mode, VideoHandler* vh, string name) {
+IntraEncoder::IntraEncoder(int opMode, VideoHandler* vh, string name) {
 	this->opMode = opMode;
-	this->mode = mode;
 	this->vh = vh;
 	this->traceFile.open(name.c_str(), fstream::in);
 	xInitCounters();	
 }
 
-IntraEncoder::IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Huffman* huffRes) {
+IntraEncoder::IntraEncoder(int opMode, VideoHandler* vh, string name, Huffman* huffRes) {
 	this->opMode = opMode;
-	this->mode = mode;
 	this->vh = vh;
 	this->traceFile.open(name.c_str(), fstream::in);
 	this->huffRes = huffRes;
@@ -64,13 +63,13 @@ IntraEncoder::IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, 
 	this->vh = vh;
 	this->traceFile.open(name.c_str(), fstream::in);
 	this->huffRes = huffRes;
-	this->huffRes16 = huffRes16;
-	this->huffRes32 = huffRes32;
-	this->huffRes64 = huffRes64;
+	this->huffRes0 = huffRes16;
+	this->huffRes1 = huffRes32;
+	this->huffRes2 = huffRes64;
 
-	this->quant16 = quant16;
-	this->quant32 = quant32;
-	this->quant64 = quant64;
+	this->quant0 = quant16;
+	this->quant1 = quant32;
+	this->quant2 = quant64;
 	this->costFile.open(costFileName.c_str(), fstream::in);
 	
 	xInitCounters();
@@ -82,6 +81,7 @@ void IntraEncoder::xInitCounters() {
 	this->uncompressedBitCount = 0;
 	this->blockChoices = 0;
 	this->subBlockChoices = 0;
+	this->stats = new Statistics();
 }
 
 void IntraEncoder::xHorizonalMode(UPel* neighbors, int** pred, int size) {
@@ -282,17 +282,17 @@ void IntraEncoder::xComputeIntraMode(int mode, UPel* neighbors, int** pred) {
 	}
 }
 
-void IntraEncoder::xComputeSubIntraMode(int mode, UPel* neighbors, int** pred) {
+void IntraEncoder::xComputeI4IntraMode(int mode, UPel* neighbors, int** pred) {
 
 	switch(mode) {
 		case VER_SMODE:
-			xVerticalMode(neighbors, pred, SUB_BLOCK_SIZE);
+			xVerticalMode(neighbors, pred, 4);
 			break;
 		case HOR_SMODE:
-			xHorizonalMode(neighbors, pred, SUB_BLOCK_SIZE);
+			xHorizonalMode(neighbors, pred, 4);
 			break;
 		case DC_SMODE:
-			xDCMode(neighbors, pred, SUB_BLOCK_SIZE);
+			xDCMode(neighbors, pred, 4);
 			break;
 		case DL_SMODE:
 			xDLMode(neighbors, pred);
@@ -364,16 +364,16 @@ void IntraEncoder::encode() {
 				int fo = frameGOPOrder[f] + GOP_SIZE*g;
 				
 				/*loop over the blocks*/
-				Pel **blockResidue;
-				int **blockPred;
-				blockResidue = new Pel*[BLOCK_SIZE];
-				blockPred = new int*[BLOCK_SIZE];
-				for (int i = 0; i < BLOCK_SIZE; i++) {
-					blockResidue[i] = new Pel[BLOCK_SIZE];
-					blockPred[i] = new int[BLOCK_SIZE];
+				Pel **macroblockResidue;
+				int **macroblockPred;
+				macroblockResidue = new Pel*[MACROBLOCK_SIZE];
+				macroblockPred = new int*[MACROBLOCK_SIZE];
+				for (int i = 0; i < MACROBLOCK_SIZE; i++) {
+					macroblockResidue[i] = new Pel[MACROBLOCK_SIZE];
+					macroblockPred[i] = new int[MACROBLOCK_SIZE];
 				}
-				for (int y = 0; y < this->vh->getHeight(); y+=BLOCK_SIZE) {
-					for (int x = 0; x < this->vh->getWidth(); x+=BLOCK_SIZE) {
+				for (int y = 0; y < this->vh->getHeight(); y+=MACROBLOCK_SIZE) {
+					for (int x = 0; x < this->vh->getWidth(); x+=MACROBLOCK_SIZE) {
 						/* tracing file reading */
 						char blockType;
 
@@ -387,52 +387,37 @@ void IntraEncoder::encode() {
 							this->traceFile >> subMode;
 							subModes.push_back(subMode);
 						}
-
-						/*I16*/
-						int mode;
-						unsigned int cost;
-
-						this->traceFile >> blockType >> cost >> mode;
 						
-						if( this->mode == I16_ONLY || (this->mode == I4_I16 && cost < subCost)) {
-							UPel **block = vh->getBlock(vo, fo, x, y);
-							UPel *neighbor = vh->getNeighboring(vo, fo, x ,y);
-							xComputeIntraMode(mode, neighbor, blockPred);
-							xCalcResidue(block, blockPred, blockResidue, BLOCK_SIZE);
+						Pel **blockResidue;
+						int **blockPred;
+						blockResidue = new Pel*[BLOCK_SIZE];
+						blockPred = new int*[BLOCK_SIZE];
 
-							this->blockChoices ++;
-							blockType = 'B';
+						for (int i = 0; i < BLOCK_SIZE; i++) {
+							blockResidue[i] = new Pel[BLOCK_SIZE];
+							blockPred[i] = new int[BLOCK_SIZE];
+						}
+
+
+						/* ZZ ORDER: TODO refactor it*/
+						for(int i=0; i<16; i++)	{
+							int xx = zzBlockOrder[i][0] * BLOCK_SIZE;
+							int yy = zzBlockOrder[i][1] * BLOCK_SIZE;
+
+							UPel **block = vh->getBlock(vo, fo, x+xx, y+yy);
+							UPel *neighbor = vh->getBlockNeighboring(vo, fo, x+xx, y+yy);
+
+							xComputeI4IntraMode(subModes[i], neighbor, blockPred);
+							xCalcResidue(block,blockPred, blockResidue, BLOCK_SIZE);
+							xCopyPelSubBlock(macroblockResidue,blockResidue, BLOCK_SIZE, xx, yy);
+							xCopyIntSubBlock(macroblockPred, blockPred, BLOCK_SIZE, xx, yy);
+							
+							//xReportStatus(xx, yy, subModes[i], neighbor, block, macroblockPred, macroblockResidue);
 							
 						}
-						else { /* (this->mode == I4_ONLY || (this->mode == I4_I16 && cost > subCost)) */
-							Pel **subBlockResidue;
-							int **subBlockPred;
-							subBlockResidue = new Pel*[SUB_BLOCK_SIZE];
-							subBlockPred = new int*[SUB_BLOCK_SIZE];
-							
-							for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
-								subBlockResidue[i] = new Pel[SUB_BLOCK_SIZE];
-								subBlockPred[i] = new int[SUB_BLOCK_SIZE];
-							}
-
-							
-							/* ZZ ORDER: TODO refactor it*/
-							for(int i=0; i<16; i++)	{
-								int xx = zzBlockOrder[i][0] * SUB_BLOCK_SIZE;
-								int yy = zzBlockOrder[i][1] * SUB_BLOCK_SIZE;
-
-								UPel **block = vh->getSubBlock(vo, fo, x+xx, y+yy);
-								UPel *neighbor = vh->getSubNeighboring(vo, fo, x+xx, y+yy);
-
-
-								xComputeSubIntraMode(subModes[i], neighbor, subBlockPred);
-								xCalcResidue(block,subBlockPred, subBlockResidue, SUB_BLOCK_SIZE);
-								xCopyPelSubBlock(blockResidue,subBlockResidue, SUB_BLOCK_SIZE, xx, yy);
-								xCopyIntSubBlock(blockPred, subBlockPred, SUB_BLOCK_SIZE, xx, yy);
-							}
-							this->subBlockChoices ++;
-							blockType = 'S';
-						}
+						
+						
+						this->subBlockChoices ++;						
 
 						list<char> compressed;
 						Pel** error;
@@ -440,165 +425,105 @@ void IntraEncoder::encode() {
 
 						switch(this->opMode) {
 							case 0:
-								// TEST HEEEERRRREEEEEE!
-								vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
+								vh->insertResidualBlock(macroblockResidue, x, y, this->stats);
+								/* TODO implement Huffman dictionary statiscs analysis */
 
 								break;
 							case 1:
 								/* Huffman */
-								compressed = this->huffRes->encodeBlock(blockResidue);
-								this->compressedBitCount += compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*SMODE_BIT_WIDTH);
-								this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
-
-								vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
+								
+								vh->insertResidualBlock(macroblockResidue, x, y, this->stats);
+								
+								compressed = this->huffRes->encodeBlock(macroblockResidue);
+								this->compressedBitCount += compressed.size() + 16*SMODE_BIT_WIDTH;
+								
+								cout << compressed.size() << " ";
+								
+								this->uncompressedBitCount += MACROBLOCK_SIZE * MACROBLOCK_SIZE * SAMPLE_BIT_WIDTH;
+								
 								break;
+								
 							case 2:
 
 								/* Quantization */
-								error = this->quant->quantize(blockResidue, BLOCK_SIZE, 0, 0);
-								vh->insertErrorBlock(error, x, y);
-								
-								vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
-
-								this->quant->invQuantize(blockResidue, BLOCK_SIZE, 0, 0);
-								recBlock = this->xReconstructBlock(blockPred, blockResidue);
-													
-								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
-
-								break;
-							case 3:
-
-								/* Quantization */
-								error = this->quant->quantize(blockResidue, BLOCK_SIZE, 0, 0);
+								error = this->quant->quantize(macroblockResidue, MACROBLOCK_SIZE, 0, 0);
 								vh->insertErrorBlock(error, x, y);
 
-								vh->insertResidualBlock(blockResidue, x, y, (blockType == 'B') ? BLOCK_MODE : SUB_BLOCK_MODE);
+								vh->insertResidualBlock(macroblockResidue, x, y, this->stats);
 
 								/* Huffman */
-								compressed = this->huffRes->encodeBlock(blockResidue);
+								compressed = this->huffRes->encodeBlock(macroblockResidue);
 								this->compressedBitCount += (compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*SMODE_BIT_WIDTH));
-								this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
+								this->uncompressedBitCount += MACROBLOCK_SIZE * MACROBLOCK_SIZE * SAMPLE_BIT_WIDTH;
 
 								//cout << x << " " << y << " " << compressed.size() + ((blockType == 'B') ? MODE_BIT_WIDTH : 16*SMODE_BIT_WIDTH) << endl;
 
-								this->quant->invQuantize(blockResidue, BLOCK_SIZE, 0, 0);
-								recBlock = this->xReconstructBlock(blockPred, blockResidue);
+								this->quant->invQuantize(macroblockResidue, MACROBLOCK_SIZE, 0, 0);
+								recBlock = this->xReconstructBlock(macroblockPred, macroblockResidue);
 								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
 
 								break;
-							case 4:
-								error = new Pel*[BLOCK_SIZE];
-								for (int i = 0; i < BLOCK_SIZE; i++) {
-									error[i] = new Pel[BLOCK_SIZE];
+
+							case 3:
+								error = new Pel*[MACROBLOCK_SIZE];
+								for (int i = 0; i < MACROBLOCK_SIZE; i++) {
+									error[i] = new Pel[MACROBLOCK_SIZE];
 
 								}
 
 								for(int i=0; i<16; i++)	{
-									int xx = zzBlockOrder[i][0] * SUB_BLOCK_SIZE;
-									int yy = zzBlockOrder[i][1] * SUB_BLOCK_SIZE;
-
-									/* Read the cost file */
-									unsigned int cost;
-									this->costFile >> cost;
-
-									/* In according with the THs, apply the rigth quantization level */
-									Quantizer *targetQuant = (cost <= TH0) ? this->quant16 :
-															 (cost > TH0 && cost <= TH1) ? this->quant32 :
-														     (cost > TH1 && cost <= TH2) ? this->quant64 :
-															 NULL; //(cost > TH2)
-
-									Huffman *targetHuff = (cost <= TH0) ? this->huffRes16 :
-														  (cost > TH0 && cost <= TH1) ? this->huffRes32 :
-														  (cost > TH1 && cost <= TH2) ? this->huffRes64 :
-														  this->huffRes; //(cost > TH2)
-
-
-									if(targetQuant != NULL) {
-										Pel** subError = targetQuant->quantize(blockResidue, SUB_BLOCK_SIZE, xx, yy);
-										xCopyPelSubBlock(error, subError, SUB_BLOCK_SIZE, xx, yy);
-									}
-									else {
-										xFillZero(error, SUB_BLOCK_SIZE, xx, yy);
-									}
-
-									vh->insertResidualSubBlock(blockResidue, xx, yy, xx+x, yy+y);
-
-									/* Huffman */
-									compressed = targetHuff->encodeSubBlock(blockResidue, xx, yy);
-									this->compressedBitCount += (compressed.size() + (SMODE_BIT_WIDTH) + ADAPTIVE_QUANT_ID_BIT_WIDTH);
-
-									
-
-									if(targetQuant != NULL) {
-										targetQuant->invQuantize(blockResidue, SUB_BLOCK_SIZE, xx, yy);
-									}
-
-								}
-								this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
-								//cout << x << " " << y << " " << blockLen << endl;
-								this->vh->insertErrorBlock(error, x, y);
-								recBlock = this->xReconstructBlock(blockPred, blockResidue);
-								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
-								break;
-
-							case 5:
-								error = new Pel*[BLOCK_SIZE];
-								for (int i = 0; i < BLOCK_SIZE; i++) {
-									error[i] = new Pel[BLOCK_SIZE];
-
-								}
-
-								for(int i=0; i<16; i++)	{
-									int xx = zzBlockOrder[i][0] * SUB_BLOCK_SIZE;
-									int yy = zzBlockOrder[i][1] * SUB_BLOCK_SIZE;
+									int xx = zzBlockOrder[i][0] * BLOCK_SIZE;
+									int yy = zzBlockOrder[i][1] * BLOCK_SIZE;
 
 									/* The costFile is now the quantization strength file */
 									unsigned int cost;
 									this->costFile >> cost;
 
 									/* In according with the THs, apply the rigth quantization level */
-									Quantizer *targetQuant = (cost == 0) ? this->quant16 :
-															 (cost == 1) ? this->quant32 :
-														     (cost == 2) ? this->quant64 :
+									Quantizer *targetQuant = (cost == 0) ? this->quant0 :
+															 (cost == 1) ? this->quant1 :
+														     (cost == 2) ? this->quant2 :
 															 NULL; //(cost > TH2)
 
-									Huffman *targetHuff = (cost == 0) ? this->huffRes16 :
-														  (cost == 1) ? this->huffRes32 :
-														  (cost == 2) ? this->huffRes64 :
+									Huffman *targetHuff = (cost == 0) ? this->huffRes0 :
+														  (cost == 1) ? this->huffRes1 :
+														  (cost == 2) ? this->huffRes2 :
 														  this->huffRes; //(cost > TH2)
 
 
 									if(targetQuant != NULL) {
-										Pel** subError = targetQuant->quantize(blockResidue, SUB_BLOCK_SIZE, xx, yy);
-										xCopyPelSubBlock(error, subError, SUB_BLOCK_SIZE, xx, yy);
+										Pel** subError = targetQuant->quantize(macroblockResidue, BLOCK_SIZE, xx, yy);
+										xCopyPelSubBlock(error, subError, BLOCK_SIZE, xx, yy);
 									}
 									else {
-										xFillZero(error, SUB_BLOCK_SIZE, xx, yy);
+										xFillZero(error, BLOCK_SIZE, xx, yy);
 									}
 
-									vh->insertResidualSubBlock(blockResidue, xx, yy, xx+x, yy+y);
+									vh->insertResidualSubBlock(macroblockResidue, xx, yy, xx+x, yy+y, this->stats);
 
 									/* Huffman */
-									compressed = targetHuff->encodeSubBlock(blockResidue, xx, yy);
+									compressed = targetHuff->encodeSubBlock(macroblockResidue, xx, yy);
 									this->compressedBitCount += (compressed.size() + (SMODE_BIT_WIDTH) + ADAPTIVE_QUANT_ID_BIT_WIDTH);
 
 
 
 									if(targetQuant != NULL) {
-										targetQuant->invQuantize(blockResidue, SUB_BLOCK_SIZE, xx, yy);
+										targetQuant->invQuantize(macroblockResidue, BLOCK_SIZE, xx, yy);
 									}
 
 								}
-								this->uncompressedBitCount += BLOCK_SIZE * BLOCK_SIZE * SAMPLE_BIT_WIDTH;
+								this->uncompressedBitCount += MACROBLOCK_SIZE * MACROBLOCK_SIZE * SAMPLE_BIT_WIDTH;
 								//cout << x << " " << y << " " << blockLen << endl;
 								this->vh->insertErrorBlock(error, x, y);
-								recBlock = this->xReconstructBlock(blockPred, blockResidue);
+								recBlock = this->xReconstructBlock(macroblockPred, macroblockResidue);
 								this->vh->insertLossyReconBlock(recBlock, vo, fo, x, y);
 								break;
 						}
 
 						subModes.clear();
 					}
+					
+					cout << endl;
 				}
 				/*write the residual information of the frame in the file*/
 				vh->writeResidualFrameInFile();
@@ -644,8 +569,8 @@ void IntraEncoder::report() {
 	cout << "SBLOCK CHOICES:\t" << subBlockPctg << endl;
 
 
-	cout << "UNCOMPRESS BW:\t" << this->uncompressedBitCount / (BLOCK_SIZE*BLOCK_SIZE) << endl;
-	cout << "COMPRESSED BW:\t" << this->compressedBitCount / (BLOCK_SIZE*BLOCK_SIZE) << endl;
+	cout << "UNCOMPRESS BW:\t" << this->uncompressedBitCount / (MACROBLOCK_SIZE*MACROBLOCK_SIZE) << endl;
+	cout << "COMPRESSED BW:\t" << this->compressedBitCount / (MACROBLOCK_SIZE*MACROBLOCK_SIZE) << endl;
 
 	cout << "LOSSLESS SAV:\t" << losslessSavings << endl;
 	cout << "AV. BIT/BLOCK:\t" << bitsPerBlock << endl;
@@ -653,8 +578,6 @@ void IntraEncoder::report() {
 }
 
 void IntraEncoder::reportCSV() {
-	double blockPctg = this->blockChoices / (double) (this->blockChoices + this->subBlockChoices);
-	double subBlockPctg = 1 - blockPctg;
 
 	double losslessSavings = this->compressedBitCount / (double) (this->uncompressedBitCount);
 	losslessSavings = 1 - losslessSavings;
@@ -663,45 +586,56 @@ void IntraEncoder::reportCSV() {
 
 	if(opMode == 1 || opMode == 3 || opMode == 4 || opMode == 5) {
 		cout << vh->getVideoName() << ";";
-		cout << ((this->mode == I4_ONLY) ? "I4_ONLY" : (this->mode == I16_ONLY) ? "I16_ONLY" : "I4_I16") << ";";
 		if(opMode != 1 && opMode != 4 && opMode != 5) {
 			cout << this->quant->getNumOfLevels()-1 << ";";
 		}
-		cout << blockPctg << ";";
-		cout << subBlockPctg << ";";
+		
 		cout << losslessSavings << ";";
 		cout << bitsPerBlock << endl;
 	}
 
 }
 
-void IntraEncoder::xReportStatus(int xx, int yy, int mode, UPel* neighbor, UPel** block, int** subBlockPred) {
+void IntraEncoder::xReportStatus(int xx, int yy, int mode, UPel* neighbor, UPel** block, int** macrolockPred, Pel** macrolockResidue) {
 	cout << xx << " " << yy << " " << mode << endl;
-	for (int i = SUB_BLOCK_SIZE; i < SUB_BLOCK_SIZE*3 + 1; i++) {
+	for (int i = BLOCK_SIZE; i < BLOCK_SIZE*3 + 1; i++) {
 		unsigned char n = neighbor[i];
 		cout << (int)n << " ";
 	}
 	cout << endl;
-	for (int i = SUB_BLOCK_SIZE-1; i >= 0 ; i--) {
+	for (int i = BLOCK_SIZE-1; i >= 0 ; i--) {
 		unsigned char n = neighbor[i];
 		cout << (int)n << endl;
 	}
-	/*
-	for (int y = 0; y < SUB_BLOCK_SIZE; y++) {
-		for (int x = 0; x < SUB_BLOCK_SIZE; x++) {
+	
+	for (int y = 0; y < BLOCK_SIZE; y++) {
+		for (int x = 0; x < BLOCK_SIZE; x++) {
 			cout << (int)block[x][y] << " ";
 		}
 		cout << endl;
-	}*/
+	}
 	cout << endl;
+	
 
-	for (int y = 0; y < SUB_BLOCK_SIZE; y++) {
-		for (int x = 0; x < SUB_BLOCK_SIZE; x++) {
-			UPel n = subBlockPred[x][y];
+	for (int y = 0; y < MACROBLOCK_SIZE; y++) {
+		for (int x = 0; x < MACROBLOCK_SIZE; x++) {
+			UPel n = macrolockPred[x][y];
+			cout << (int)n << " ";
+		}
+		cout << endl;
+	}
+	
+	for (int y = 0; y < MACROBLOCK_SIZE; y++) {
+		for (int x = 0; x < MACROBLOCK_SIZE; x++) {
+			Pel n = macrolockResidue[x][y];
 			cout << (int)n << " ";
 		}
 		cout << endl;
 	}
 	getchar();
 	
+}
+
+void IntraEncoder::reportOcc() {
+	this->stats->report();
 }

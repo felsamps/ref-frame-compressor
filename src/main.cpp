@@ -15,14 +15,13 @@ int main(int argc, char** argv) {
 	int opMode = atoi(argv[1]);
 
 	//for all opModes
-	int mode = atoi(argv[2]);
-	int w = atoi(argv[3]);
-	int h = atoi(argv[4]);
-	int nv = atoi(argv[5]);
-	int gops = atoi(argv[6]);
+	int w = atoi(argv[2]);
+	int h = atoi(argv[3]);
+	int nv = atoi(argv[4]);
+	int gops = atoi(argv[5]);
 	
-	string reconFileName(argv[7]);
-	string traceFileName(argv[8]);
+	string reconFileName(argv[6]);
+	string traceFileName(argv[7]);
 	//endfor
 
 	string huffDictFileName;
@@ -54,18 +53,26 @@ int main(int argc, char** argv) {
 	switch(opMode) {
 		case 0:
 			vh = new VideoHandler(w, h, nv, gops, reconFileName, "");
-			ie = new IntraEncoder(opMode, mode, vh, traceFileName); //TODO
-			break;
+			ie = new IntraEncoder(opMode, vh, traceFileName); 
 			
+			ie->encode();
+			ie->reportOcc();
+			break;
+		
 		case 1:
-			huffDictFileName.assign(argv[9]);
-			videoFileName.assign(argv[10]);
+			huffDictFileName.assign(argv[8]);
+			videoFileName.assign(argv[9]);
 			
 			huffRes = new Huffman(huffDictFileName);
 			vh = new VideoHandler(w, h, nv, gops, reconFileName, videoFileName);
-			ie = new IntraEncoder(opMode, mode, vh, traceFileName, huffRes); //TODO
+			ie = new IntraEncoder(opMode, vh, traceFileName, huffRes); //TODO
+			
+			ie->encode();
+			ie->reportCSV();
+			
 			break;
 
+		/*
 		case 2:
 			quantFileName.assign(argv[9]);
 
@@ -130,12 +137,9 @@ int main(int argc, char** argv) {
 
 			vh = new VideoHandler(w, h, nv, gops, reconFileName, videoFileName);
 			ie = new IntraEncoder(opMode, mode, vh, traceFileName, huffRes, huffRes16, huffRes32, huffRes64, q16, q32, q64, quantFile);
-			break;
+			break;*/
 
 	}
-
-	ie->encode();
-	ie->reportCSV();
 
 }
 

@@ -26,10 +26,20 @@ void Huffman::xParserDictFile() {
 
 list<char> Huffman::encodeBlock(Pel** block) {
 	list<char> returnable;
-	for (int y = 0; y < BLOCK_SIZE; y++) {
-		for (int x = 0; x < BLOCK_SIZE; x++) {
-			list<char> l = this->dict[block[x][y]];
-			returnable.merge(l);
+	for (int y = 0; y < MACROBLOCK_SIZE; y++) {
+		for (int x = 0; x < MACROBLOCK_SIZE; x++) {
+			Pel sample = block[x][y];
+			if(this->dict.find(sample) == this->dict.end()) {
+				list<char> l = this->dict[128]; /* special code assignment */
+				returnable.merge(l);
+				list<char> l1(8, '0'); /* raw residue assignment */
+				returnable.merge(l1);
+			}
+			else {
+				list<char> l = this->dict[block[x][y]];
+				returnable.merge(l);
+			}
+			
 		}
 	}
 	return returnable;
@@ -38,8 +48,8 @@ list<char> Huffman::encodeBlock(Pel** block) {
 
 list<char> Huffman::encodeSubBlock(Pel** block, int xx, int yy) {
 	list<char> returnable;
-	for (int y = 0; y < SUB_BLOCK_SIZE; y++) {
-		for (int x = 0; x < SUB_BLOCK_SIZE; x++) {
+	for (int y = 0; y < BLOCK_SIZE; y++) {
+		for (int x = 0; x < BLOCK_SIZE; x++) {
 			list<char> l = this->dict[block[xx + x][yy + y]];
 			returnable.merge(l);
 		}

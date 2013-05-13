@@ -9,7 +9,8 @@ TOP=`pwd`
 CND_PLATFORM=GNU-Linux-x86
 CND_CONF=Default
 CND_DISTDIR=dist
-TMPDIR=build/${CND_CONF}/${CND_PLATFORM}/tmp-packaging
+CND_BUILDDIR=build
+NBTMPDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}/tmp-packaging
 TMPDIRNAME=tmp-packaging
 OUTPUT_PATH=MissingOutputInProject
 OUTPUT_BASENAME=MissingOutputInProject
@@ -53,22 +54,22 @@ function copyFileToTmpDir
 # Setup
 cd "${TOP}"
 mkdir -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/package
-rm -rf ${TMPDIR}
-mkdir -p ${TMPDIR}
+rm -rf ${NBTMPDIR}
+mkdir -p ${NBTMPDIR}
 
 # Copy files and create directories and links
 cd "${TOP}"
-makeDirectory ${TMPDIR}/ref-frame-compressor/bin
-copyFileToTmpDir "${OUTPUT_PATH}" "${TMPDIR}/${PACKAGE_TOP_DIR}bin/${OUTPUT_BASENAME}" 0755
+makeDirectory "${NBTMPDIR}/ref-frame-compressor"
+copyFileToTmpDir "${OUTPUT_PATH}" "${NBTMPDIR}/${PACKAGE_TOP_DIR}bin/${OUTPUT_BASENAME}" 0755
 
 
 # Generate tar file
 cd "${TOP}"
 rm -f ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/package/ref-frame-compressor.tar
-cd ${TMPDIR}
+cd ${NBTMPDIR}
 tar -vcf ../../../../${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/package/ref-frame-compressor.tar *
 checkReturnCode
 
 # Cleanup
 cd "${TOP}"
-rm -rf ${TMPDIR}
+rm -rf ${NBTMPDIR}

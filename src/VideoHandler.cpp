@@ -1,3 +1,5 @@
+#include <map>
+
 #include "../inc/VideoHandler.h"
 
 VideoHandler::VideoHandler(int w, int h, int nv, int gops, string name, string videoName) {
@@ -21,9 +23,6 @@ VideoHandler::VideoHandler(int w, int h, int nv, int gops, string name, string v
 			this->lossyReconFrame[v][f] = new UPel[(int)(w * h)];
 		}
 	}
-
-
-	this->modeFrame = new bool[(w/BLOCK_SIZE) * (h/BLOCK_SIZE)];
 
 	this->residualFile.open("residue.mat", fstream::out);
 	this->errorFile.open("errors.mat", fstream::out);
@@ -64,7 +63,25 @@ void VideoHandler::xHandleTargetFile(int v, int f) {
 	}
 }
 
-UPel** VideoHandler::getBlock(int v, int f, int x, int y) {
+UPel** VideoHandler::getMacroblock(int v, int f, int x, int y) {
+	xHandleTargetFile(v, f);
+
+	UPel **returnable = new UPel*[MACROBLOCK_SIZE];
+	for (int i = 0; i < MACROBLOCK_SIZE; i++) {
+		returnable[i] = new UPel[MACROBLOCK_SIZE];
+	}
+
+	for (int j = 0; j < MACROBLOCK_SIZE; j++) {
+		for (int i = 0; i < MACROBLOCK_SIZE; i++) {
+			returnable[i][j] = this->reconFrame[(i+x) + (j+y) * this->w];
+		}
+	}
+
+	return returnable;
+
+}
+
+UPel **VideoHandler::getBlock(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
 	UPel **returnable = new UPel*[BLOCK_SIZE];
@@ -79,33 +96,37 @@ UPel** VideoHandler::getBlock(int v, int f, int x, int y) {
 	}
 
 	return returnable;
-
 }
 
-UPel **VideoHandler::getSubBlock(int v, int f, int x, int y) {
+
+
+UPel* VideoHandler::getMBNeighboring(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
-	UPel **returnable = new UPel*[SUB_BLOCK_SIZE];
-	for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
-		returnable[i] = new UPel[SUB_BLOCK_SIZE];
+	UPel *returnable = new UPel[2*MACROBLOCK_SIZE + 1];
+	
+	/* upper-right neighbor sample */
+	returnable[MACROBLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
+
+	/* left samples */
+	for (int j = 0; j < MACROBLOCK_SIZE; j++) {
+		returnable[(BLOCK_SIZE-1) - j] = (x != 0) ? this->reconFrame[(x-1) + (j+y)*this->w] : -1;
 	}
 
-	for (int j = 0; j < SUB_BLOCK_SIZE; j++) {
-		for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
-			returnable[i][j] = this->reconFrame[(i+x) + (j+y) * this->w];
-		}
+	/* upper samples */
+	for (int i = 0; i < MACROBLOCK_SIZE; i++) {
+		returnable[(MACROBLOCK_SIZE+1) + i] = (y != 0) ? this->reconFrame[(i+x) + (y-1)*this->w] : -1;
 	}
 
 	return returnable;
+	
 }
 
-
-
-UPel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
+UPel* VideoHandler::getBlockNeighboring(int v, int f, int x, int y) {
 	xHandleTargetFile(v, f);
 
-	UPel *returnable = new UPel[2*BLOCK_SIZE + 1];
-	
+	UPel *returnable = new UPel[3*BLOCK_SIZE + 1];
+
 	/* upper-right neighbor sample */
 	returnable[BLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
 
@@ -115,30 +136,8 @@ UPel* VideoHandler::getNeighboring(int v, int f, int x, int y) {
 	}
 
 	/* upper samples */
-	for (int i = 0; i < BLOCK_SIZE; i++) {
-		returnable[(BLOCK_SIZE+1) + i] = (y != 0) ? this->reconFrame[(i+x) + (y-1)*this->w] : -1;
-	}
-
-	return returnable;
-	
-}
-
-UPel* VideoHandler::getSubNeighboring(int v, int f, int x, int y) {
-	xHandleTargetFile(v, f);
-
-	UPel *returnable = new UPel[3*SUB_BLOCK_SIZE + 1];
-
-	/* upper-right neighbor sample */
-	returnable[SUB_BLOCK_SIZE] = (x!=0 && y!=0) ? this->reconFrame[(x-1) + (y-1)*this->w] : -1;
-
-	/* left samples */
-	for (int j = 0; j < SUB_BLOCK_SIZE; j++) {
-		returnable[(SUB_BLOCK_SIZE-1) - j] = (x != 0) ? this->reconFrame[(x-1) + (j+y)*this->w] : -1;
-	}
-
-	/* upper samples */
-	for (int i = 0; i < 2*SUB_BLOCK_SIZE; i++) {
-		returnable[(SUB_BLOCK_SIZE+1) + i] = 
+	for (int i = 0; i < 2*BLOCK_SIZE; i++) {
+		returnable[(BLOCK_SIZE+1) + i] = 
 				(y == 0) ? -1 :
 					((x+i) >= this->w) ? -1 :
 						this->reconFrame[(i+x) + (y-1)*this->w];
@@ -148,19 +147,22 @@ UPel* VideoHandler::getSubNeighboring(int v, int f, int x, int y) {
 
 }
 
-void VideoHandler::insertResidualBlock(Pel** block, int x, int y, bool mode) {
-	for (int j = 0; j < BLOCK_SIZE; j++) {
-		for (int i = 0; i < BLOCK_SIZE; i++) {
+void VideoHandler::insertResidualBlock(Pel** block, int x, int y, Statistics* stats) {
+	for (int j = 0; j < MACROBLOCK_SIZE; j++) {
+		for (int i = 0; i < MACROBLOCK_SIZE; i++) {
 			this->residualFrame[(i+x) + (j+y) * this->w] = block[i][j];
+			/* TODO update residual occurrences */
+			stats->insertValue(block[i][j]);
 		}
 	}
-	this->modeFrame[x/BLOCK_SIZE + (y/BLOCK_SIZE)+this->w] = mode;
 }
 
-void VideoHandler::insertResidualSubBlock(Pel** block, int x, int y, int xx, int yy) {
-	for (int j = 0; j < SUB_BLOCK_SIZE; j++) {
-		for (int i = 0; i < SUB_BLOCK_SIZE; i++) {
+void VideoHandler::insertResidualSubBlock(Pel** block, int x, int y, int xx, int yy, Statistics* stats) {
+	for (int j = 0; j < BLOCK_SIZE; j++) {
+		for (int i = 0; i < BLOCK_SIZE; i++) {
 			this->residualFrame[(i+xx) + (j+yy) * this->w] = block[i+x][j+y];
+			/* TODO update residual occurrences */
+			stats->insertValue(block[i+x][j+y]);
 		}
 	}
 }
@@ -175,8 +177,8 @@ void VideoHandler::writeResidualFrameInFile() {
 }
 
 void VideoHandler::insertErrorBlock(Pel** block, int x, int y) {
-	for (int j = 0; j < BLOCK_SIZE; j++) {
-		for (int i = 0; i < BLOCK_SIZE; i++) {
+	for (int j = 0; j < MACROBLOCK_SIZE; j++) {
+		for (int i = 0; i < MACROBLOCK_SIZE; i++) {
 			this->errorFrame[(i+x) + (j+y) * this->w] = block[i][j];
 		}
 	}

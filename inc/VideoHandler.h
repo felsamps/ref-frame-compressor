@@ -2,6 +2,7 @@
 #define	_VIDEOHANDLER_H
 
 #include "../inc/Defines.h"
+#include "../inc/Statistics.h"
 
 #include <string>
 #include <vector>
@@ -11,6 +12,7 @@
 #include <sstream>
 #include <iostream>
 #include <cmath>
+#include <map>
 
 using namespace std;
 
@@ -23,7 +25,6 @@ private:
     Pel* residualFrame;
     Pel* errorFrame;
     UPel*** lossyReconFrame;
-    bool* modeFrame;
     vector<string> fileNames;
     fstream reconFile, residualFile, errorFile, lossyReconFile;
     string videoName;
@@ -35,14 +36,14 @@ private:
 public:
     VideoHandler(int w, int h, int nv, int nf, string name, string videoName);
 
+    UPel** getMacroblock(int v, int f, int x, int y);
+    UPel* getMBNeighboring(int v, int f, int x, int y);
+
     UPel** getBlock(int v, int f, int x, int y);
-    UPel* getNeighboring(int v, int f, int x, int y);
+    UPel* getBlockNeighboring(int v, int f, int x, int y);
 
-    UPel** getSubBlock(int v, int f, int x, int y);
-    UPel* getSubNeighboring(int v, int f, int x, int y);
-
-    void insertResidualBlock(Pel** block, int x, int y, bool mode);
-    void insertResidualSubBlock(Pel** block, int x, int y, int xx, int yy);
+    void insertResidualBlock(Pel** block, int x, int y, Statistics* stats);
+    void insertResidualSubBlock(Pel** block, int x, int y, int xx, int yy, Statistics* stats);
     void writeResidualFrameInFile();
 
     void insertErrorBlock(Pel** block, int x, int y);
