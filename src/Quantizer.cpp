@@ -70,6 +70,21 @@ Pel** Quantizer::quantize(Pel** residue, int size, int xx, int yy) {
 	return error;
 }
 
+Pel** Quantizer::getError(Pel** residue, int size, int xx, int yy) {
+	Pel** error = new Pel*[size];
+	for (int i = 0; i < size; i++) {
+		error[i] = new Pel[size];
+	}
+
+	for (int y = 0; y < size; y++) {
+		for (int x = 0; x < size; x++) {
+			Pel quantized = this->fQuant[residue[x+xx][y+yy]];
+			error[x][y] = residue[x+xx][y+yy] - iQuant[quantized];
+		}
+	}
+	return error;
+}
+
 void Quantizer::invQuantize(Pel** quantized, int size,  int xx, int yy) {
 	for (int y = 0; y < size; y++) {
 		for (int x = 0; x < size; x++) {

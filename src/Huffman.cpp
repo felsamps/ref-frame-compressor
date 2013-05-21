@@ -36,7 +36,7 @@ list<char> Huffman::encodeBlock(Pel** block) {
 				returnable.merge(l1);
 			}
 			else {
-				list<char> l = this->dict[block[x][y]];
+				list<char> l = this->dict[sample];
 				returnable.merge(l);
 			}
 			
@@ -50,8 +50,17 @@ list<char> Huffman::encodeSubBlock(Pel** block, int xx, int yy) {
 	list<char> returnable;
 	for (int y = 0; y < BLOCK_SIZE; y++) {
 		for (int x = 0; x < BLOCK_SIZE; x++) {
-			list<char> l = this->dict[block[xx + x][yy + y]];
-			returnable.merge(l);
+			Pel sample = block[x+xx][y+yy];
+			if(this->dict.find(sample) == this->dict.end()) {
+				list<char> l = this->dict[128]; /* special code assignment */
+				returnable.merge(l);
+				list<char> l1(8, '0'); /* raw residue assignment */
+				returnable.merge(l1);
+			}
+			else {
+				list<char> l = this->dict[sample];
+				returnable.merge(l);
+			}
 		}
 	}
 	return returnable;

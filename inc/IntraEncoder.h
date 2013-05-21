@@ -52,6 +52,7 @@ private:
     UPel** xReconstructBlock(int** pred, Pel** res);
 
     void xCalcResidue(UPel **block, int **blockPred, Pel **blockResidue, int size);
+    double xCalcMSE(Pel** subError);
 
     pair<IntraMode, int> xEncodeBlock(int v, int f, int x, int y, Pel** residue);
     pair<vector<IntraMode>, int> xEncodeSubBlock(int v, int f, int x, int y, Pel** residue);
@@ -63,10 +64,9 @@ public:
     
     IntraEncoder(int opMode, VideoHandler* vh, string name); //MODE 0
     IntraEncoder(int opMode, VideoHandler* vh, string name, Huffman* huffRes); //MODE 1
-    IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Quantizer* quant); //MODE 2
-    IntraEncoder(int opMode, int mode, VideoHandler* vh, string name, Huffman* huffRes, Quantizer* quant); //MODE 3
+    IntraEncoder(int opMode, VideoHandler* vh, string name, Quantizer* quant); //MODE 2
+    IntraEncoder(int opMode, VideoHandler* vh, string name, Huffman* huffRes, Quantizer* quant); //MODE 3
     IntraEncoder(int opMode,
-                 int mode,
                  VideoHandler* vh,
                  string name,
                  Huffman* huffRes,
@@ -75,8 +75,7 @@ public:
                  Huffman* huffRes64,
                  Quantizer* quant16,
                  Quantizer* quant32,
-                 Quantizer* quant64,
-                 string costFileName); //MODE 4
+                 Quantizer* quant64); //MODE 4
     
 
     void encode();
@@ -84,6 +83,7 @@ public:
     void report();
     void reportCSV(); 
     void reportOcc();
+    void reportStats();
 
 };
 

@@ -14,7 +14,6 @@ private:
     map<int, long long> occ;
     long long total;
     
-    pair<double,double> xCalcMeanStd();
     
 public:
     Statistics();
@@ -22,6 +21,8 @@ public:
     void insertValue(int value);
     void generateProbabilities();
     void report();
+    
+    pair<double,double> calcStats();
 };
 
 #endif	/* STATISTICS_H */

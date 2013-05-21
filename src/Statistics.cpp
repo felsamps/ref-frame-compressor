@@ -14,7 +14,7 @@ void Statistics::insertValue(int value) {
 	this->total += 1;
 }
 
-pair<double,double> Statistics::xCalcMeanStd() {
+pair<double,double> Statistics::calcStats() {
 	/* mean calculation */
 	long long total = 0;
 	double mean = 0.0;
@@ -42,7 +42,7 @@ void Statistics::report() {
 	
 	pair<double, double> stats;
 	
-	stats = xCalcMeanStd();
+	stats = calcStats();
 	double mean = stats.first;
 	double std = stats.second;
 	
